@@ -1,10 +1,11 @@
 ﻿##Active Developers
-Nikolay          [Nikolay]
-Lisheng          [guanlisheng]
-James            [siena123]
-Stefano          [stef145g]
-Pat              [omalleypat]
-Gabriele         [gabriele-v]
+Nikolay Akimov    [vomikan]
+Lisheng Guan      [guanlisheng]
+Stefano Georgio   [stef145g]
+Gabriele Villa    [gabriele-v]
+Tomasz Słodkowicz [slodki]
+James Higley      [siena123]
+Patrick O'Malley  [omalleypat]
 
 =======================================
 ##Translations
@@ -55,13 +56,13 @@ Norwegian
 Polish
 -- Damian_pl
 -- Andrzej
--- Jerzy Machnicki 
+-- Jerzy Machnicki
 Portuguese (Portugal)
 -- Fatela
 Romanian
 -- Munteanu & Florin
 Russian
--- KarmaSV, Nikolay, Churzzz, Vadim
+-- KarmaSV, Nikolay Akimov, Churzzz, Vadim
 Simple Chinese
 -- Liu Ming
 Slovak
@@ -86,19 +87,19 @@ Vietnamese
 =======================================
 ##User Manual
 English
--- Stefano 	 [stef145g]
+-- Stefano [stef145g]
 -- Tina P, Terry Wick
 Italian
--- Maurizio 	 [Mau13]
+-- Maurizio [Mau13]
 French
 -- catacotox
--- phira 	 [phira]
+-- phira [phira]
 Gernam
--- Renato 	 [Renato]
+-- Renato [Renato]
 Hungarian
--- Toroka 	 [Toroka]
-Russian 
--- Nikolay 	 [Nikolay]
+-- Toroka [Toroka]
+Russian
+-- Nikolay Akimov [Nikolay]
 Polish
 -- Damian_pl
 Spanish
@@ -292,7 +293,7 @@ Greg Chapman
 2014
 1. [CodeLathe LLC](http://www.tonido.com/)
 2. Geoff Mulhall
-3. Fabio Toffolo	
+3. Fabio Toffolo
 4. Bruce McLendon
 5. Dimitrios Valsamis
 6. Eleanor Batchelder
@@ -322,7 +323,7 @@ Greg Chapman
 30. Michael Creswell
 31. Martin Freye
 32. Franciscus Johannes van der Loo
-33. Michel Aroichane
+33. Miche Aro
 34. Carl Bolling
 35. Alain Rouault
 36. David Tomlin
@@ -363,7 +364,7 @@ willmetz
 ##GNU general public license
 Copyright (C) 2009-2017 Nikolay
 Copyright (C) 2011-2017 LiSheng [guanlisheng]
-Copyright (C) 2013-2016 James [siena123]
+Copyright (C) 2013-2017 James [siena123]
 Copyright (C) 2013-2017 Gabriele[gabriele-v]
 Copyright (C) 2010-2017 Stefano [stef145g]
 Copyright (C) 2009-2010 VaDiM, Wesley Ellis
@@ -381,25 +382,25 @@ Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  021
 ##Privacy Policy
 We can collect information from you when you install or use Money Manager EX application.
 People have different privacy concerns: our goal is to be clear about what information we collect, so that you can make meaningful choices about how it is used.
- 
+
 1. Using Money Manager EX application
 When starting and using  Money Manager EX application, we might collect ANONYMOUS usage statistics like version, geo-location, language, platform and most used functions. No private or financial information is collected.
- 
+
 2. What do we use your information for?
 Any of the information we collect from you may be used in one of the following ways: make statistics about software usage and distribution; personalize your experience (your information helps us to better respond to your individual needs); improve our application (we continually improve our offerings based on the information and feedback we receive from you)
- 
+
 3. Do we disclose any information to outside parties?
 We do not sell, trade, or otherwise transfer to outside parties collected information.
- 
+
 4. Disable statistics sending
 You can turn of at any moment sending of stats simply removing corresponding flag under Options->Network.
- 
+
 5. Your consent
 By installing or using Money Manager EX, you consent to our Privacy policy.
-  
+
 6. Changes to our Privacy policy
 If we decide to change our Privacy policy, we will update the Privacy policy modification date below.
- 
+
 This policy was last modified on 2014-04-30.
 - Money Manager EX team
 ---------------------------------------

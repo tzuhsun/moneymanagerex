@@ -20,10 +20,8 @@
 #include "constants.h"
 #include "paths.h"
 #include "reports/htmlbuilder.h"
-#include "db/DB_Upgrade.h"
 #include <wx/statline.h>
 #include <wx/version.h>
-#include <wx/wxsqlite3.h>
 #include <wx/regex.h>
 
 wxIMPLEMENT_DYNAMIC_CLASS(mmAboutDialog, wxDialog);
@@ -42,7 +40,7 @@ mmAboutDialog::mmAboutDialog(wxWindow* parent, int TabToOpen, const wxString &na
     const wxString caption = (TabToOpen == 4)
         ? _("License agreement") : wxString::Format(_("About %s"), mmex::getProgramName());
     Create(parent, wxID_ANY, caption, wxDefaultPosition
-        , wxSize(390, 550), wxCAPTION | wxRESIZE_BORDER | wxCLOSE_BOX, TabToOpen, name);
+        , wxDefaultSize, wxCAPTION | wxRESIZE_BORDER | wxCLOSE_BOX, TabToOpen, name);
     SetMinClientSize(wxSize(300, 400));
 }
 
@@ -64,9 +62,6 @@ bool mmAboutDialog::Create(wxWindow* parent
     {
         CreateControls(TabToOpen);
         InitControls();
-        //GetSizer()->Fit(this);
-        //GetSizer()->SetSizeHints(this);
-        //this->SetInitialSize();
         this->SetIcon(mmex::getProgramIcon());
         this->Centre();
     }
@@ -77,7 +72,7 @@ bool mmAboutDialog::Create(wxWindow* parent
 void mmAboutDialog::InitControls()
 {
     mmHTMLBuilder hb;
-    wxString html = mmex::getProgramDescription();
+    wxString html = getProgramDescription();
     html.Replace("\n", "<br>");
     hb.addHeader(1, mmex::getProgramName());
     hb.addText(html);
@@ -88,7 +83,6 @@ void mmAboutDialog::InitControls()
     wxArrayString data;
     data.Add("");
 
-    int part = 0;
     hb.clear();
 
     //Read data from file
@@ -97,7 +91,8 @@ void mmAboutDialog::InitControls()
     {
         wxFileInputStream input(filePath);
         wxTextInputStream text(input);
-        wxRegEx link ("\\[([^][]+)\\]\\(([^\\(\\)]+)\\)", wxRE_EXTENDED);
+        wxRegEx link (R"(\[([^][]+)\]\(([^\(\)]+)\))", wxRE_EXTENDED);
+        int part = 0;
 
         while (input.IsOk() && !input.Eof())
         {
@@ -140,12 +135,10 @@ void mmAboutDialog::CreateControls(int TabToOpen)
     wxBoxSizer* itemBoxSizer = new wxBoxSizer(wxVERTICAL);
     this->SetSizer(itemBoxSizer);
 
-    wxStaticText* itemStaticText88 = new wxStaticText(this
-        , wxID_STATIC, mmex::getProgramCopyright());
-
     //Create tabs
     wxNotebook* about_notebook = new wxNotebook(this
-        , wxID_ANY, wxDefaultPosition, wxSize(400, 500), wxNB_MULTILINE);
+        , wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_MULTILINE);
+    about_notebook->SetMinSize(wxSize(400, 500));
 
     wxPanel* about_tab = new wxPanel(about_notebook, wxID_ANY);
     about_notebook->AddPage(about_tab, _("About"));
@@ -199,14 +192,14 @@ void mmAboutDialog::CreateControls(int TabToOpen)
 
     itemBoxSizer->Add(about_notebook, g_flagsExpand);
 
-    itemBoxSizer->Add(itemStaticText88, g_flagsCenter);
-
     wxButton* button_OK = new wxButton(this, wxID_OK, _("&OK "));
     button_OK->SetDefault();
     button_OK->SetFocus();
     itemBoxSizer->Add(button_OK, g_flagsCenter);
 
     about_notebook->ChangeSelection(TabToOpen);
+
+    GetSizer()->Fit(this);
 }
 
 void mmAboutDialog::OnLinkClicked(wxHtmlLinkEvent& event)

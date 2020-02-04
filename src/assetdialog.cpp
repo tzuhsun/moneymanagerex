@@ -19,17 +19,15 @@
 #include "constants.h"
 #include "images_list.h"
 #include "mmSimpleDialogs.h"
-#include "mmtextctrl.h"
+#include "mmTextCtrl.h"
 #include "paths.h"
 #include "util.h"
 #include "validators.h"
 
-#include "model/Model_Attachment.h"
+#include "Model_Attachment.h"
 #include "usertransactionpanel.h"
 #include "accountdialog.h"
 #include "mmframe.h"
-
-#include <wx/valnum.h>
 
 wxIMPLEMENT_DYNAMIC_CLASS(mmAssetDialog, wxDialog);
 
@@ -44,7 +42,9 @@ wxEND_EVENT_TABLE()
 
 mmAssetDialog::mmAssetDialog(wxWindow* parent, mmGUIFrame* gui_frame, Model_Asset::Data* asset, bool trans_data)
     : m_asset(asset)
-    , m_gui_frame(gui_frame)
+    , m_hidden_trans_entry(true)
+    , m_transfer_entry(nullptr)
+    , m_checking_entry(nullptr)
     , m_assetName()
     , m_dpc()
     , m_notes()
@@ -53,10 +53,8 @@ mmAssetDialog::mmAssetDialog(wxWindow* parent, mmGUIFrame* gui_frame, Model_Asse
     , m_assetType()
     , m_valueChange()
     , m_valueChangeRateLabel()
-    , m_hidden_trans_entry(true)
-    , m_transfer_entry(nullptr)
-    , m_checking_entry(nullptr)
     , m_dialog_heading (_("New Asset"))
+    , m_gui_frame(gui_frame)
 {
     if (m_asset || trans_data)
     {
@@ -74,7 +72,9 @@ mmAssetDialog::mmAssetDialog(wxWindow* parent, mmGUIFrame* gui_frame, Model_Asse
 
 mmAssetDialog::mmAssetDialog(wxWindow* parent, mmGUIFrame* gui_frame, Model_Translink::Data* transfer_entry, Model_Checking::Data* checking_entry)
     : m_asset(nullptr)
-    , m_gui_frame(gui_frame)
+    , m_hidden_trans_entry(false)
+    , m_transfer_entry(transfer_entry)
+    , m_checking_entry(checking_entry)
     , m_assetName()
     , m_dpc()
     , m_notes()
@@ -83,10 +83,8 @@ mmAssetDialog::mmAssetDialog(wxWindow* parent, mmGUIFrame* gui_frame, Model_Tran
     , m_assetType()
     , m_valueChange()
     , m_valueChangeRateLabel()
-    , m_hidden_trans_entry(false)
-    , m_transfer_entry(transfer_entry)
-    , m_checking_entry(checking_entry)
     , m_dialog_heading (_("Add Asset Transaction"))
+    , m_gui_frame(gui_frame)
 {
     if (transfer_entry)
     {
@@ -196,16 +194,17 @@ void mmAssetDialog::CreateControls()
 
     itemFlexGridSizer6->Add(new wxStaticText(asset_details_panel, wxID_STATIC, _("Date")), g_flagsH);
 
-    m_dpc = new wxDatePickerCtrl( asset_details_panel, wxID_ANY, wxDefaultDateTime,
-              wxDefaultPosition, wxSize(150, -1), wxDP_DROPDOWN|wxDP_SHOWCENTURY);
+    m_dpc = new wxDatePickerCtrl(asset_details_panel, wxID_ANY, wxDefaultDateTime
+        , wxDefaultPosition, wxDefaultSize, wxDP_DROPDOWN|wxDP_SHOWCENTURY);
     itemFlexGridSizer6->Add(m_dpc, g_flagsV);
     m_dpc->SetToolTip(_("Specify the date of purchase of asset"));
 
     itemFlexGridSizer6->Add(new wxStaticText(asset_details_panel, wxID_STATIC, _("Asset Type")), g_flagsH);
 
-    m_assetType = new wxChoice(asset_details_panel, wxID_STATIC, wxDefaultPosition, wxSize(150, -1));
-    for (const auto& a : Model_Asset::all_type())
+    m_assetType = new wxChoice(asset_details_panel, wxID_STATIC);
+    for (const auto& a : Model_Asset::all_type()) {
         m_assetType->Append(wxGetTranslation(a), new wxStringClientData(a));
+    }
 
     m_assetType->SetToolTip(_("Select type of asset"));
     m_assetType->SetSelection(Model_Asset::TYPE_PROPERTY);
@@ -217,7 +216,7 @@ void mmAssetDialog::CreateControls()
     v->SetFont(this->GetFont().Bold());
 
     m_value = new mmTextCtrl(asset_details_panel, IDC_VALUE, wxGetEmptyString()
-        , wxDefaultPosition, wxSize(150,-1), wxALIGN_RIGHT|wxTE_PROCESS_ENTER
+        , wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT|wxTE_PROCESS_ENTER
         , mmCalcValidator() );
     m_value->SetToolTip(_("Enter the current value of the asset"));
     itemFlexGridSizer6->Add(m_value, g_flagsV);
@@ -226,9 +225,10 @@ void mmAssetDialog::CreateControls()
 
     itemFlexGridSizer6->Add(new wxStaticText(asset_details_panel, wxID_STATIC, _("Change in Value")), g_flagsH);
 
-    m_valueChange = new wxChoice(asset_details_panel, IDC_COMBO_TYPE, wxDefaultPosition, wxSize(150, -1));
-    for(const auto& a : Model_Asset::all_rate())
+    m_valueChange = new wxChoice(asset_details_panel, IDC_COMBO_TYPE);
+    for (const auto& a : Model_Asset::all_rate()) {
         m_valueChange->Append(wxGetTranslation(a));
+    }
 
     m_valueChange->SetToolTip(_("Specify if the value of the asset changes over time"));
     m_valueChange->SetSelection(Model_Asset::RATE_NONE);
@@ -238,9 +238,9 @@ void mmAssetDialog::CreateControls()
     itemFlexGridSizer6->Add(m_valueChangeRateLabel, g_flagsV);
 
     m_valueChangeRate = new mmTextCtrl(asset_details_panel, IDC_RATE, wxGetEmptyString()
-        , wxDefaultPosition, wxSize(150,-1), wxALIGN_RIGHT|wxTE_PROCESS_ENTER
+        , wxDefaultPosition, wxDefaultSize, wxALIGN_RIGHT|wxTE_PROCESS_ENTER
         , mmCalcValidator());
-    m_valueChangeRate->SetToolTip(_("Enter the rate at which the asset changes its value in % per year"));
+    m_valueChangeRate->SetToolTip(_("Enter the rate at which the asset changes its value in percentage per year"));
     itemFlexGridSizer6->Add(m_valueChangeRate, g_flagsV);
     m_valueChangeRate->Connect(IDC_RATE, wxEVT_COMMAND_TEXT_ENTER
         , wxCommandEventHandler(mmAssetDialog::onTextEntered), nullptr, this);
@@ -254,7 +254,8 @@ void mmAssetDialog::CreateControls()
     itemFlexGridSizer6->Add(bAttachments_, wxSizerFlags(g_flagsV).Align(wxALIGN_RIGHT));
     bAttachments_->SetToolTip(_("Organize attachments of this asset"));
 
-    m_notes = new mmTextCtrl(this, IDC_NOTES, wxGetEmptyString(), wxDefaultPosition, wxSize(220, 170), wxTE_MULTILINE);
+    m_notes = new mmTextCtrl(this, IDC_NOTES, wxGetEmptyString()
+        , wxDefaultPosition, wxSize(-1, m_dpc->GetSize().GetHeight() * 5), wxTE_MULTILINE);
     m_notes->SetToolTip(_("Enter notes associated with this asset"));
     details_frame_sizer->Add(m_notes, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 10);
 
@@ -287,11 +288,6 @@ void mmAssetDialog::CreateControls()
     }
 
     if (m_hidden_trans_entry) HideTransactionPanel();
-    /********************************************************************
-    Separation Line
-    *********************************************************************/
-    wxStaticLine* separation_line = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL);
-    main_sizer->Add(separation_line, 0, wxEXPAND | wxALL, 1);
 
     /********************************************************************
     Button Panel
@@ -299,7 +295,7 @@ void mmAssetDialog::CreateControls()
     wxPanel* button_panel = new wxPanel(this, wxID_STATIC);
     wxBoxSizer* button_panel_sizer = new wxBoxSizer(wxHORIZONTAL);
     wxButton* ok_button = new wxButton(button_panel, wxID_OK, _("&OK "));
-    wxButton* cancel_button = new wxButton(button_panel, wxID_CANCEL, _("&Cancel "));
+    wxButton* cancel_button = new wxButton(button_panel, wxID_CANCEL, g_CancelLabel);
 
     main_sizer->Add(button_panel, wxSizerFlags(g_flagsV).Center());
     button_panel->SetSizer(button_panel_sizer);
@@ -315,7 +311,7 @@ void mmAssetDialog::HideTransactionPanel()
     m_transaction_panel->Hide();
 }
 
-void mmAssetDialog::OnChangeAppreciationType(wxCommandEvent& /*event*/)
+void mmAssetDialog::OnChangeAppreciationType(wxCommandEvent& WXUNUSED(event))
 {
     int selection = m_valueChange->GetSelection();
     // Disable for "None", Enable for "Appreciates" or "Depreciates"
@@ -339,7 +335,7 @@ void mmAssetDialog::enableDisableRate(bool en)
     }
 }
 
-void mmAssetDialog::OnOk(wxCommandEvent& /*event*/)
+void mmAssetDialog::OnOk(wxCommandEvent& WXUNUSED(event))
 {
     const wxString name = m_assetName->GetValue().Trim();
     if (name.empty())
@@ -361,7 +357,7 @@ void mmAssetDialog::OnOk(wxCommandEvent& /*event*/)
     }
 
     wxString asset_type = "";
-    wxStringClientData* type_obj = (wxStringClientData *)m_assetType->GetClientObject(m_assetType->GetSelection());
+    wxStringClientData* type_obj = static_cast<wxStringClientData *>(m_assetType->GetClientObject(m_assetType->GetSelection()));
     if (type_obj) asset_type = type_obj->GetData();
 
     bool is_new = !m_asset;
@@ -375,7 +371,7 @@ void mmAssetDialog::OnOk(wxCommandEvent& /*event*/)
     m_asset->VALUECHANGERATE  = valueChangeRate;
     m_asset->ASSETTYPE        = asset_type;
 
-	int old_asset_id = m_asset->ASSETID;
+    int old_asset_id = m_asset->ASSETID;
     int new_asset_id = Model_Asset::instance().save(m_asset);
 
     if (old_asset_id < 0)
@@ -383,7 +379,9 @@ void mmAssetDialog::OnOk(wxCommandEvent& /*event*/)
         const wxString& RefType = Model_Attachment::reftype_desc(Model_Attachment::ASSET);
         mmAttachmentManage::RelocateAllAttachments(RefType, 0, new_asset_id);
     }
-    if (m_transaction_panel->ValidCheckingAccountEntry())
+
+    UserTransactionPanel::GUI_ERROR g_err = UserTransactionPanel::GUI_ERROR::NONE;
+    if (m_transaction_panel->ValidCheckingAccountEntry(g_err))
     {
         int checking_id = m_transaction_panel->SaveChecking();
         if (!m_transfer_entry)
@@ -395,14 +393,34 @@ void mmAssetDialog::OnOk(wxCommandEvent& /*event*/)
     }
     else if (!m_hidden_trans_entry)
     {
-        mmErrorDialogs::MessageWarning(this, _("Invalid Transaction"), m_dialog_heading);
+        if (g_err == UserTransactionPanel::GUI_ERROR::ACCOUNT)
+        {
+            mmErrorDialogs::InvalidAccount(m_transaction_panel->m_account, false, mmErrorDialogs::MESSAGE_POPUP_BOX);
+        }
+        else if (g_err == UserTransactionPanel::GUI_ERROR::PAYEE)
+        {
+            mmErrorDialogs::InvalidPayee(m_transaction_panel->m_payee, mmErrorDialogs::MESSAGE_POPUP_BOX);
+        }
+        else if (g_err == UserTransactionPanel::GUI_ERROR::CATEGORY)
+        {
+            mmErrorDialogs::InvalidCategory(m_transaction_panel->m_category, true);
+        }
+        else if (g_err == UserTransactionPanel::GUI_ERROR::ENTRY)
+        {
+            mmErrorDialogs::InvalidAmount(m_transaction_panel->m_entered_amount);
+        }
+
         return;
     }
 
     Model_Account::Data* asset_account = Model_Account::instance().get(name);
     if (is_new && !asset_account)
     {
-        if (wxMessageBox(_("Asset Account not found.\n\nWould you want to create one?")
+        if (wxMessageBox(_("An asset account having the same name has not been found.\n\n"
+            "A single transaction for this asset can be associated with any account.\n"
+            "Multiple asset transactions need to be associated with an asset account.\n\n"
+            "Would you want to create one?\n\n"
+        )
             , _("New Asset"), wxYES_NO | wxICON_INFORMATION) == wxYES)
         {
             CreateAssetAccount();
@@ -443,7 +461,7 @@ void mmAssetDialog::CreateAssetAccount()
     asset_dialog.ShowModal();
 }
 
-void mmAssetDialog::OnCancel(wxCommandEvent& /*event*/)
+void mmAssetDialog::OnCancel(wxCommandEvent& WXUNUSED(event))
 {
     if (assetRichText)
         return;
@@ -456,7 +474,7 @@ void mmAssetDialog::OnCancel(wxCommandEvent& /*event*/)
     }
 }
 
-void mmAssetDialog::OnQuit(wxCloseEvent& /*event*/)
+void mmAssetDialog::OnQuit(wxCloseEvent& WXUNUSED(event))
 {
     const wxString& RefType = Model_Attachment::reftype_desc(Model_Attachment::ASSET);
     if (!this->m_asset)
@@ -464,11 +482,11 @@ void mmAssetDialog::OnQuit(wxCloseEvent& /*event*/)
     EndModal(wxID_CANCEL);
 }
 
-void mmAssetDialog::OnAttachments(wxCommandEvent& /*event*/)
+void mmAssetDialog::OnAttachments(wxCommandEvent& WXUNUSED(event))
 {
     const wxString& RefType = Model_Attachment::reftype_desc(Model_Attachment::ASSET);
     int RefId;
-    
+
     if (!this->m_asset)
         RefId = 0;
     else

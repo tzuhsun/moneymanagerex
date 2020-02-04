@@ -1,7 +1,18 @@
-FROM opensuse:42.1
-MAINTAINER developers@moneymanagerex.org
+FROM opensuse/archive:42.1
+LABEL maintainer="developers@moneymanagerex.org"
 RUN zypper install -y --no-recommends \
-      cmake gettext-tools gcc-c++ git make rpm-build lsb-release \
+      ccache \
+      cmake \
+      gcc5-c++ \
+      gettext-tools \
+      git \
+      libcurl-devel \
+      lsb-release \
+      make \
+      rpm-build \
       wxWidgets-3_0-devel \
-      automake libtool \
- && zypper clean --all
+ && zypper clean --all \
+ && update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-5 50 \
+ && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-5 50
+
+ENV MMEX_INST_CMD zypper --no-refresh --no-gpg-checks install -y ./mmex-*.rpm

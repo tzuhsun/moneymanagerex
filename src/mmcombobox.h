@@ -21,8 +21,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <wx/textctrl.h>
 #include <wx/combobox.h>
 #include <wx/string.h>
-#include "model/Model_Account.h"
-#include "model/Model_Payee.h"
+#include "Model_Account.h"
+#include "Model_Payee.h"
 #include <wx/richtooltip.h>
 
 
@@ -48,10 +48,6 @@ public:
         else
             this->AutoComplete(Model_Account::instance().all_checking_account_names());
 
-    }
-    wxString GetValue() const
-    {
-        return wxTextCtrl::GetValue();
     }
 
     void setSelection(int &id)
@@ -79,7 +75,7 @@ public:
                     + "\n");
                 wxRichToolTip tip(errorHeader, errorMessage);
                 tip.SetIcon(wxICON_WARNING);
-                tip.ShowFor((wxWindow*) this);
+                tip.ShowFor(this);
                 this->SetFocus();
             }
         }

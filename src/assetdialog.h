@@ -16,14 +16,19 @@
 
 #pragma once
 
-#include "model/Model_Asset.h"
-#include "model/Model_Currency.h"
-#include "model/Model_Translink.h"
+#include <wx/dialog.h>
+#include "Model_Asset.h"
+#include "Model_Currency.h"
+#include "Model_Translink.h"
 
 class wxDatePickerCtrl;
 class mmTextCtrl;
 class UserTransactionPanel;
 class mmGUIFrame;
+class wxChoice;
+class wxStaticText;
+class wxBitmapButton;
+class wxStaticBox;
 
 class mmAssetDialog : public wxDialog
 {
@@ -35,11 +40,12 @@ public:
     mmAssetDialog(wxWindow *parent, mmGUIFrame* gui_frame, Model_Asset::Data* asset, bool trans_data = false);
     mmAssetDialog(wxWindow *parent, mmGUIFrame* gui_frame, Model_Translink::Data* transfer_entry, Model_Checking::Data* checking_entry);
 
-    Model_Asset::Data* m_asset;
     void SetTransactionAccountName(const wxString& account_name);
     void SetTransactionDate();
+    Model_Asset::Data* getAssetData() { return m_asset; }
 
 private:
+    Model_Asset::Data* m_asset;
     bool Create(wxWindow* parent
         , wxWindowID id
         , const wxString& caption

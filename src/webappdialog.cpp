@@ -37,9 +37,7 @@ wxEND_EVENT_TABLE()
 
 
 mmWebAppDialog::mmWebAppDialog(wxWindow *parent, const wxString& name) :
-    m_webtran_id(-1)
-    , m_maskTextCtrl()
-    , webtranListBox_()
+    webtranListBox_()
     , refreshRequested_(false)
 {
     Create(parent, name);
@@ -79,11 +77,11 @@ void mmWebAppDialog::CreateControls()
     webtranListBox_->AppendTextColumn(_("Account"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_ACCOUNT
     webtranListBox_->AppendTextColumn(_("Status"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_STATUS
     webtranListBox_->AppendTextColumn(_("Type"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_TYPE
-    webtranListBox_->AppendTextColumn(_("Payee"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_PAYEE, 
-    webtranListBox_->AppendTextColumn(_("Category"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_CATEGORY, 
-    webtranListBox_->AppendTextColumn(_("Amount"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_AMOUNT, 
-    webtranListBox_->AppendTextColumn(_("Notes"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_NOTES, 
-    webtranListBox_->AppendTextColumn(_("Attachments"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_ATTACHMENTS, 
+    webtranListBox_->AppendTextColumn(_("Payee"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_PAYEE,
+    webtranListBox_->AppendTextColumn(_("Category"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_CATEGORY,
+    webtranListBox_->AppendTextColumn(_("Amount"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_AMOUNT,
+    webtranListBox_->AppendTextColumn(_("Notes"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_NOTES,
+    webtranListBox_->AppendTextColumn(_("Attachments"), wxDATAVIEW_CELL_INERT, wxLIST_AUTOSIZE_USEHEADER); //WEBTRAN_ATTACHMENTS,
     mainBoxSizer->Add(webtranListBox_, wxSizerFlags(g_flagsExpand).Border(wxALL, 10));
 
     wxPanel* buttons_panel = new wxPanel(this, wxID_ANY);
@@ -114,7 +112,7 @@ void mmWebAppDialog::fillControls()
     for (const auto& WebTran : WebAppTransactions_)
     {
         wxVector<wxVariant> data;
-        data.push_back(wxVariant(wxString::Format(wxT("%i"),WebTran.ID))); //WEBTRAN_ID
+        data.push_back(wxVariant(wxString::Format("%i", WebTran.ID))); //WEBTRAN_ID
         data.push_back(wxVariant(mmGetDateForDisplay(WebTran.Date.FormatISODate()))); //WEBTRAN_DATE
         data.push_back(wxVariant(WebTran.Account)); //WEBTRAN_ACCOUNT
         data.push_back(wxVariant(WebTran.Status)); //WEBTRAN_STATUS
@@ -133,7 +131,7 @@ void mmWebAppDialog::fillControls()
 
         data.push_back(wxVariant(WebTran.Notes)); //WEBTRAN_NOTES
         data.push_back(wxVariant(WebTran.Attachments)); //WEBTRAN_ATTACHMENTS
-        webtranListBox_->AppendItem(data, (wxUIntPtr)WebTran.ID);
+        webtranListBox_->AppendItem(data, static_cast<wxUIntPtr>(WebTran.ID));
     }
 }
 
@@ -144,7 +142,7 @@ void mmWebAppDialog::OnListItemActivated(wxDataViewEvent& event)
 
     if (selected_index >= 0)
     {
-        int WebTrID = (int)webtranListBox_->GetItemData(item);
+        int WebTrID = static_cast<int>(webtranListBox_->GetItemData(item));
         mmWebAppDialog::ImportWebTr(WebTrID, true);
         fillControls();
     }
@@ -212,7 +210,7 @@ void mmWebAppDialog::ImportWebTrSelected()
     wxDataViewItemArray Selected;
     webtranListBox_->GetSelections(Selected);
 
-    if (Selected.size() == 0)
+    if (Selected.empty())
         return;
 
     for (wxDataViewItem Item : Selected)
@@ -220,7 +218,7 @@ void mmWebAppDialog::ImportWebTrSelected()
         int selectedIndex_ = webtranListBox_->ItemToRow(Item);
         if (selectedIndex_ >= 0)
         {
-            int WebTrID = (int)webtranListBox_->GetItemData(Item);
+            int WebTrID = static_cast<int>(webtranListBox_->GetItemData(Item));
             mmWebAppDialog::ImportWebTr(WebTrID, true);
         }
     }
@@ -232,7 +230,7 @@ void mmWebAppDialog::DeleteWebTr()
     wxDataViewItemArray Selected;
     webtranListBox_->GetSelections(Selected);
 
-    if (Selected.size() == 0)
+    if (Selected.empty())
         return;
 
     for (wxDataViewItem Item : Selected)
@@ -240,7 +238,7 @@ void mmWebAppDialog::DeleteWebTr()
         int selectedIndex_ = webtranListBox_->ItemToRow(Item);
         if (selectedIndex_ >= 0)
         {
-            mmWebApp::WebApp_DeleteOneTransaction((int)webtranListBox_->GetItemData(Item));
+            mmWebApp::WebApp_DeleteOneTransaction(static_cast<int>(webtranListBox_->GetItemData(Item)));
         }
     }
     fillControls();
@@ -288,18 +286,18 @@ void mmWebAppDialog::ImportAllWebTr(const bool open)
     }
 }
 
-void mmWebAppDialog::OnCancel(wxCommandEvent& /*event*/)
+void mmWebAppDialog::OnCancel(wxCommandEvent& WXUNUSED(event))
 {
     EndModal(wxID_CANCEL);
 }
 
-void mmWebAppDialog::OnApply(wxCommandEvent& /*event*/)
+void mmWebAppDialog::OnApply(wxCommandEvent& WXUNUSED(event))
 {
     mmWebAppDialog::ImportAllWebTr(true);
     EndModal(wxID_APPLY);
 }
 
-void mmWebAppDialog::OnOk(wxCommandEvent& /*event*/)
+void mmWebAppDialog::OnOk(wxCommandEvent& WXUNUSED(event))
 {
     mmWebAppDialog::ImportAllWebTr(false);
     EndModal(wxID_OK);

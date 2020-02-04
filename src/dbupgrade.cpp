@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 
 #include "dbupgrade.h"
-#include "constants.h"
+#include "util.h"
 
 #include <wx/filedlg.h>
 #include <wx/filename.h>
@@ -83,17 +83,17 @@ bool dbUpgrade::UpgradeToVersion(wxSQLite3Database * db, int version)
         }
         catch (const wxSQLite3Exception& e)
         {
-            wxMessageBox(wxString::Format(_("MMEX database upgrade to version %i failed!"), version) + "\n\n"
-                + _("Please restore DB from autocreated pre-upgrade backup and retry or contact MMEX support") + "\n\n"
-                + e.GetMessage(), _("MMEX database upgrade"), wxOK | wxICON_ERROR);
+            UpgradeFailedMessage(e.GetMessage(), _("upgrade"), version);
             db->Rollback("MMEX_Upgrade");
             return false;
         }
     }
+
     if (!InitializeVersion(db, version))
         return false;
-    
+
     db->ReleaseSavepoint("MMEX_Upgrade");
+
     return true;
 }
 
@@ -105,8 +105,10 @@ bool dbUpgrade::InitializeVersion(wxSQLite3Database* db, int version)
         db->ExecuteUpdate("PRAGMA application_id = 0x4d4d4558;");
         return true;
     }
-    catch (const wxSQLite3Exception& /*e*/)
+    catch (const wxSQLite3Exception& e)
     {
+        UpgradeFailedMessage(e.GetMessage(), _("initialization"), version);
+        db->Rollback("MMEX_Upgrade");
         return false;
     }
 }
@@ -137,13 +139,30 @@ bool dbUpgrade::UpgradeDB(wxSQLite3Database* db, const wxString& DbFileName)
             return false;
     }
 
-    wxMessageBox(wxString::Format(_("MMEX database successfully upgraded to version %i"), ver) + "\n\n"
-        + _("We suggest a database optimization under Tools -> Database -> Optimize"), _("MMEX database upgrade"), wxOK | wxICON_INFORMATION);
+    try
+    {
+        db->Vacuum();
+    }
+    catch (const wxSQLite3Exception& e)
+    {
+        wxMessageBox(_("MMEX database vacuum failed!") + "\n\n"
+            + _("MMEX still should work, but try to re-optimize it from Tools -> Database -> Optimize") + "\n\n"
+            + e.GetMessage(), _("MMEX database upgrade"), wxOK | wxICON_WARNING);
+    }
+
+    wxMessageBox(wxString::Format(_("MMEX database successfully upgraded to version %i"), ver), _("MMEX database upgrade"), wxOK | wxICON_INFORMATION);
 
     return true;
 }
 
-void dbUpgrade::BackupDB(const wxString& FileName, int BackupType, int FilesToKeep, int UpgradeVersion)
+void dbUpgrade::UpgradeFailedMessage(const wxString& error, const wxString& step, int version)
+{
+    wxMessageBox(wxString::Format(_("MMEX database %s to version %i failed!"), step, version) + "\n\n"
+        + _("Please restore DB from autocreated pre-upgrade backup and retry or contact MMEX support") + "\n\n"
+        + error, _("MMEX database upgrade"), wxOK | wxICON_ERROR);
+}
+
+void dbUpgrade::BackupDB(const wxString& FileName, enum BACKUPTYPE BackupType, unsigned FilesToKeep, int UpgradeVersion)
 {
     wxFileName fn(FileName);
     if (!fn.IsOk()) return;
@@ -203,7 +222,7 @@ void dbUpgrade::BackupDB(const wxString& FileName, int BackupType, int FilesToKe
             backupFile = wxFindNextFile();
         }
 
-        if (backupFileArray.Count() > (size_t)FilesToKeep)
+        if (backupFileArray.Count() > FilesToKeep)
         {
             backupFileArray.Sort(true);
             // ensure file is not read only before deleting file.
@@ -215,28 +234,66 @@ void dbUpgrade::BackupDB(const wxString& FileName, int BackupType, int FilesToKe
 
 void dbUpgrade::SqlFileDebug(wxSQLite3Database* db)
 {
-    wxFileDialog fileDlgLoad(nullptr,_("Load debug file"),"","","MMDBG Files (*.mmdbg)|*.mmdbg", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    wxFileDialog fileDlgLoad(nullptr,_("Load debug file"),"","",_("MMEX debug files (*.mmdbg)")+"|*.mmdbg", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (fileDlgLoad.ShowModal() != wxID_OK)
         return;
 
-    wxString filePath = fileDlgLoad.GetPath();
-    if (wxFileName(filePath).GetExt().MakeLower() != "mmdbg")
+    wxTextFile txtFile;
+    txtFile.Open(fileDlgLoad.GetPath());
+    bool readonly;
+
+    wxString txtLine = txtFile.GetFirstLine();
+    if (txtLine == "-- MMEX Debug SQL - Read --") readonly=true;
+    else if (txtLine == "-- MMEX Debug SQL - Update --") readonly=false;
+    else
     {
-        wxMessageBox(_("Wrong file type!"), _("MMEX debug error"), wxOK | wxICON_ERROR);
+        wxMessageBox(_("Invalid debug file content, please contact MMEX support!"), _("MMEX debug error"), wxOK | wxICON_ERROR);
         return;
     }
 
-    wxTextFile txtFile;
-    txtFile.Open(filePath);
-
-    if (txtFile.GetFirstLine().Contains("-- MMEX Debug SQL - Read --"))
+    if (!txtFile.Eof())
     {
-        wxString txtLine, txtLog = "";
+        txtLine = txtFile.GetNextLine();
+        if (txtLine.StartsWith("-- MMEX db version required ",&txtLine))
+        {
+            int ver = GetCurrentVersion(db);
+            long reqver;
+            if (!txtLine.ToCLong(&reqver))
+            {
+                wxMessageBox(_("Invalid debug file content, please contact MMEX support!"), _("MMEX debug error"), wxOK | wxICON_ERROR);
+                return;
+            }
+            if (ver != reqver)
+            {
+                wxString msg = wxString::Format(_("This SQL debug script requires %li database version, but current database is version %i."), reqver, ver);
+                wxMessageBox(msg, _("MMEX debug error"), wxOK | wxICON_ERROR);
+                return;
+            }
+            if (!txtFile.Eof())
+                txtLine = txtFile.GetNextLine();
+        }
+    }
+
+    wxString txtMsg;
+    for (; !txtFile.Eof() && txtLine.StartsWith("-- ",&txtLine); txtLine = txtFile.GetNextLine())
+    {
+            txtMsg << txtLine << "\n";
+
+    }
+    if (!txtMsg.IsEmpty())
+        if (wxMessageBox(_("Debug script description:") + "\n\n" + txtMsg + "\n" + _("Please confirm running this SQL script."), _("MMEX debug"), wxOK | wxCANCEL) != wxOK)
+            return;
+
+    if (txtFile.Eof()) return; // only comments in file
+
+    if (readonly)
+    {
+        wxString txtLog = wxEmptyString;
 
         txtLog << wxString::Format("Current db file version: %i", dbUpgrade::GetCurrentVersion(db)) + wxTextFile::GetEOL();
-        txtLog << mmex::getProgramDescription() + wxTextFile::GetEOL();
+        txtLog << getProgramDescription() + wxTextFile::GetEOL();
 
-        for (txtLine = txtFile.GetNextLine(); !txtFile.Eof(); txtLine = txtFile.GetNextLine())
+        for (; !txtFile.Eof(); txtLine = txtFile.GetNextLine())
         {
             txtLog << wxTextFile::GetEOL() << "=== Query ===" << wxTextFile::GetEOL() << txtLine << wxTextFile::GetEOL();
 
@@ -273,7 +330,7 @@ void dbUpgrade::SqlFileDebug(wxSQLite3Database* db)
             _("MMEX debug"), txtLog, wxOK | wxCANCEL | wxCENTRE | wxTE_MULTILINE);
         if (dlg.ShowModal() == wxID_OK)
         {
-            wxFileDialog fileDlgSave(nullptr, _("Save debug file"), "", "", "*.txt", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+            wxFileDialog fileDlgSave(nullptr, _("Save debug file"), "", "", _("Text files (*.txt)")+"|*.txt", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
             if (fileDlgSave.ShowModal() == wxID_OK)
             {
                 wxFile file(fileDlgSave.GetPath(), wxFile::write);
@@ -285,11 +342,10 @@ void dbUpgrade::SqlFileDebug(wxSQLite3Database* db)
             }
         }
     }
-    else if (txtFile.GetFirstLine().Contains("-- MMEX Debug SQL - Update --"))
+    else
     {
         db->Savepoint("MMEX_Debug");
-        wxString txtLine;
-        for (txtLine = txtFile.GetNextLine(); !txtFile.Eof(); txtLine = txtFile.GetNextLine())
+        for (; !txtFile.Eof(); txtLine = txtFile.GetNextLine())
         {
             try
             {
@@ -304,10 +360,5 @@ void dbUpgrade::SqlFileDebug(wxSQLite3Database* db)
         }
         db->ReleaseSavepoint("MMEX_Debug");
         wxMessageBox(_("DB maintenance completed, please close and re-open MMEX!"), _("MMEX debug"), wxOK | wxICON_INFORMATION);
-    }
-    else
-    {
-        wxMessageBox(_("Invalid debug file content, please contact MMEX support!"), _("MMEX debug error"), wxOK | wxICON_ERROR);
-        return;
     }
 }

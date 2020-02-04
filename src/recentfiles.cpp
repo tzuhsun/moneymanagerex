@@ -18,7 +18,7 @@
  *************************************************************************/
 
 #include "recentfiles.h"
-#include "model/Model_Setting.h"
+#include "Model_Setting.h"
 
 mmFileHistory::mmFileHistory(size_t maxFiles, wxWindowID idBase)
     : wxFileHistory(maxFiles, idBase)
@@ -65,7 +65,7 @@ void mmFileHistory::Save()
     {
         wxString buf;
         buf.Printf("RECENT_DB_%d", i);
-        if (i < (int)GetCount())
+        if (static_cast<size_t>(i) < GetCount())
             Model_Setting::instance().Set(buf, GetHistoryFile(i));
         else
             Model_Setting::instance().Set(buf, wxString(""));

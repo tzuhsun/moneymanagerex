@@ -22,10 +22,16 @@
 #include "images_list.h"
 #include "option.h"
 #include "mmex.h"
-#include "mmframe.h"
+#include "util.h"
 #include "reports/budget.h"
 #include "reports/mmDateRange.h"
-#include "model/allmodel.h"
+#include "Model_Usage.h"
+#include "Model_Category.h"
+#include "Model_Subcategory.h"
+#include "Model_Budgetyear.h"
+#include "Model_Setting.h"
+#include "Model_Infotable.h"
+#include "Model_Currency.h"
 
 enum
 {
@@ -68,14 +74,12 @@ wxBEGIN_EVENT_TABLE(budgetingListCtrl, mmListCtrl)
 wxEND_EVENT_TABLE()
 /*******************************************************/
 mmBudgetingPanel::mmBudgetingPanel(int budgetYearID
-    , wxWindow *parent, mmGUIFrame* frame, wxWindowID winid
+    , wxWindow *parent, wxWindowID winid
     , const wxPoint& pos, const wxSize& size
     , long style,const wxString& name)
-    : m_imageList(nullptr)
-    , listCtrlBudget_(nullptr)
+    : listCtrlBudget_(nullptr)
     , budgetYearID_(budgetYearID)
-    , m_frame(frame)
-    , budgetReportHeading_(nullptr)
+    , m_imageList(nullptr)
     , income_estimated_(nullptr)
     , income_actual_(nullptr)
     , income_diff_(nullptr)
@@ -128,8 +132,9 @@ void mmBudgetingPanel::OnViewPopupSelected(wxCommandEvent& event)
         currentView_ = VIEW_EXPENSE;
     else if (evt == MENU_VIEW_SUMMARYBUDGETENTRIES)
         currentView_ = VIEW_SUMM;
-    else
-        wxASSERT(false);
+    else {
+        wxFAIL_MSG("unknown popup menu command");
+    }
 
     Model_Infotable::instance().Set("BUDGET_FILTER", currentView_);
 
@@ -172,12 +177,12 @@ wxString mmBudgetingPanel::GetPanelTitle() const
     wxString yearStr = Model_Budgetyear::instance().Get(budgetYearID_);
     if ((yearStr.length() < 5))
     {
-        if (Option::instance().BudgetFinancialYears())
+        if (Option::instance().getBudgetFinancialYears())
         {
             long year;
             yearStr.ToLong(&year);
             year++;
-            yearStr = wxString::Format(_("Financial Year: %s - %i"), yearStr, year);
+            yearStr = wxString::Format(_("Financial Year: %s - %li"), yearStr, year);
         }
         else
         {
@@ -188,6 +193,12 @@ wxString mmBudgetingPanel::GetPanelTitle() const
     {
         yearStr = wxString::Format(_("Month: %s"), yearStr);
     }
+
+    if (Option::instance().getBudgetDaysOffset() != 0)
+    {
+        yearStr = wxString::Format(_("%s    Start Date of: %s"), yearStr, mmGetDateForDisplay(m_budget_offset_date));
+    }
+
     return wxString::Format(_("Budget Setup for %s"), yearStr);
 }
 
@@ -195,7 +206,7 @@ void mmBudgetingPanel::UpdateBudgetHeading()
 {
     budgetReportHeading_->SetLabel(GetPanelTitle());
 
-    wxStaticText* header = (wxStaticText*)FindWindow(ID_PANEL_CHECKING_STATIC_PANELVIEW);
+    wxStaticText* header = static_cast<wxStaticText*>(FindWindow(ID_PANEL_CHECKING_STATIC_PANELVIEW));
     header->SetLabel(wxGetTranslation(currentView_));
 }
 
@@ -240,16 +251,20 @@ void mmBudgetingPanel::CreateControls()
     itemBoxSizerVHeader->Add(itemIncomeSizer);
 
     income_estimated_ = new wxStaticText(itemPanel3
-        , ID_DIALOG_BUDGETENTRY_SUMMARY_INCOME_EST, "$", wxDefaultPosition, wxSize(120, -1));
+        , ID_DIALOG_BUDGETENTRY_SUMMARY_INCOME_EST, "$");
+    income_estimated_->SetMinSize(wxSize(120, -1));
     income_actual_ = new wxStaticText(itemPanel3
-        , ID_DIALOG_BUDGETENTRY_SUMMARY_INCOME_ACT, "$", wxDefaultPosition, wxSize(120, -1));
+        , ID_DIALOG_BUDGETENTRY_SUMMARY_INCOME_ACT, "$");
+    income_actual_->SetMinSize(wxSize(120, -1));
     income_diff_ = new wxStaticText(itemPanel3
         , ID_DIALOG_BUDGETENTRY_SUMMARY_INCOME_DIF, "$");
 
     expenses_estimated_ = new wxStaticText(itemPanel3
-        , ID_DIALOG_BUDGETENTRY_SUMMARY_EXPENSES_EST, "$", wxDefaultPosition, wxSize(120, -1));
+        , ID_DIALOG_BUDGETENTRY_SUMMARY_EXPENSES_EST, "$");
+    expenses_estimated_->SetMinSize(wxSize(120, -1));
     expenses_actual_ = new wxStaticText(itemPanel3
-        , ID_DIALOG_BUDGETENTRY_SUMMARY_EXPENSES_ACT, "$", wxDefaultPosition, wxSize(120, -1));
+        , ID_DIALOG_BUDGETENTRY_SUMMARY_EXPENSES_ACT, "$");
+    expenses_actual_->SetMinSize(wxSize(120, -1));
     expenses_diff_ = new wxStaticText(itemPanel3
         , ID_DIALOG_BUDGETENTRY_SUMMARY_EXPENSES_DIF, "$");
 
@@ -270,7 +285,7 @@ void mmBudgetingPanel::CreateControls()
     itemIncomeSizer->Add(expenses_diff_);
     /* ---------------------- */
 
-    int x = Option::instance().IconSize();
+    int x = Option::instance().getIconSize();
     m_imageList = new wxImageList(x, x);
     m_imageList->Add(mmBitmap(png::RECONCILED));
     m_imageList->Add(mmBitmap(png::VOID_STAT));
@@ -367,7 +382,7 @@ void mmBudgetingPanel::initVirtualListControl()
     mmReportBudget budgetDetails;
 
     bool evaluateTransfer = false;
-    if (Option::instance().BudgetIncludeTransfers())
+    if (Option::instance().getBudgetIncludeTransfers())
     {
         evaluateTransfer = true;
     }
@@ -387,16 +402,24 @@ void mmBudgetingPanel::initVirtualListControl()
     }
     else
     {
-        int day = -1, month = -1;
+        int day = -1;
+        wxDateTime::Month month = wxDateTime::Month::Inv_Month;
         budgetDetails.AdjustYearValues(day, month, dtBegin);
         budgetDetails.AdjustDateForEndFinancialYear(dtEnd);
     }
+
+    // Readjust dates by the Budget Offset Option
+    Option::instance().setBudgetDateOffset(dtBegin);
+    m_budget_offset_date = dtBegin.FormatISODate();
+    Option::instance().setBudgetDateOffset(dtEnd);
     mmSpecifiedRange date_range(dtBegin, dtEnd);
+
     //Get statistics
     Model_Budget::instance().getBudgetEntry(budgetYearID_, budgetPeriod_, budgetAmt_);
     Model_Category::instance().getCategoryStats(categoryStats_
-        , &date_range, Option::instance().IgnoreFutureTransactions()
-        , false, true, (evaluateTransfer ? &budgetAmt_ : 0));
+        , nullptr
+        , &date_range, Option::instance().getIgnoreFutureTransactions()
+        , false, (evaluateTransfer ? &budgetAmt_ : 0));
 
     const Model_Subcategory::Data_Set& allSubcategories = Model_Subcategory::instance().all(Model_Subcategory::COL_SUBCATEGNAME);
     for (const auto& category : Model_Category::instance().all(Model_Category::COL_CATEGNAME))
@@ -445,7 +468,7 @@ void mmBudgetingPanel::initVirtualListControl()
                 else
                     actIncome += actual;
             }
-    
+
             /***************************************************************************
              Update the TOTALS entry for the subcategory.
             ***************************************************************************/
@@ -459,21 +482,21 @@ void mmBudgetingPanel::initVirtualListControl()
         budgetTotals_[category.CATEGID].first = catTotalsEstimated;
         budgetTotals_[category.CATEGID].second = catTotalsActual;
 
-        if ((!Option::instance().BudgetSetupWithoutSummaries() || currentView_ == VIEW_SUMM)
+        if ((!Option::instance().getBudgetSetupWithoutSummaries() || currentView_ == VIEW_SUMM)
             && DisplayEntryAllowed(-1, category.CATEGID))
         {
             budget_.push_back(std::make_pair(-1, category.CATEGID));
-            int transCatTotalIndex = (int)budget_.size() - 1;
+            size_t transCatTotalIndex = budget_.size() - 1;
             listCtrlBudget_->RefreshItem(transCatTotalIndex);
         }
     }
 
-    listCtrlBudget_->SetItemCount((int)budget_.size());
+    listCtrlBudget_->SetItemCount(budget_.size());
 
     wxString est_amount, act_amount, diff_amount;
     est_amount = Model_Currency::toCurrency(estIncome);
     act_amount = Model_Currency::toCurrency(actIncome);
-    diff_amount = Model_Currency::toCurrency(estIncome - actIncome);
+    diff_amount = Model_Currency::toCurrency(actIncome - estIncome);
 
     income_estimated_->SetLabelText(est_amount);
     income_actual_->SetLabelText(act_amount);
@@ -483,7 +506,7 @@ void mmBudgetingPanel::initVirtualListControl()
     if (actExpenses < 0.0) actExpenses = -actExpenses;
     est_amount = Model_Currency::toCurrency(estExpenses);
     act_amount = Model_Currency::toCurrency(actExpenses);
-    diff_amount = Model_Currency::toCurrency(estExpenses - actExpenses);
+    diff_amount = Model_Currency::toCurrency(actExpenses - estExpenses);
 
     expenses_estimated_->SetLabelText(est_amount);
     expenses_actual_->SetLabelText(act_amount);
@@ -622,7 +645,7 @@ wxListItemAttr* budgetingListCtrl::OnGetItemAttr(long item) const
     if ((cp_->GetTransID(item) < 0) &&
         (cp_->GetCurrentView() != VIEW_SUMM))
     {
-        return (wxListItemAttr *)&attr3_;
+        return const_cast<wxListItemAttr*>(&attr3_);
     }
 
     /* Returns the alternating background pattern */

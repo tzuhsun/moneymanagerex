@@ -20,10 +20,10 @@
 #define MODEL_INFOTABLE_H
 
 #include "Model.h"
-#include "db/DB_Table_Infotable_V1.h"
+#include "Table_Infotable.h"
 #include "defs.h"
 
-class Model_Infotable : public Model<DB_Table_INFOTABLE_V1>
+class Model_Infotable : public Model<DB_Table_INFOTABLE>
 {
 public:
     Model_Infotable();
@@ -52,6 +52,10 @@ public:
     void Set(const wxString& key, const wxColour& value);
 
 public:
+    //Deleter
+    void Delete(const wxString& key);
+
+public:
     // Getter
     bool GetBoolInfo(const wxString& key, bool default_value);
     int GetIntInfo(const wxString& key, int default_value);
@@ -72,4 +76,4 @@ public:
     void SetCustomDialogSize(const wxString& RefType, const wxSize& Size);
 };
 
-#endif // 
+#endif

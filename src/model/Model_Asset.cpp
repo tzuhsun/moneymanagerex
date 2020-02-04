@@ -17,15 +17,16 @@
  ********************************************************/
 
 #include "Model_Asset.h"
+#include <cmath>
 
-const std::vector<std::pair<Model_Asset::RATE, wxString> > Model_Asset::RATE_CHOICES = 
+const std::vector<std::pair<Model_Asset::RATE, wxString> > Model_Asset::RATE_CHOICES =
 {
     {Model_Asset::RATE_NONE, wxString(wxTRANSLATE("None"))}
     , {Model_Asset::RATE_APPRECIATE, wxString(wxTRANSLATE("Appreciates"))}
     , {Model_Asset::RATE_DEPRECIATE, wxString(wxTRANSLATE("Depreciates"))}
 };
 
-const std::vector<std::pair<Model_Asset::TYPE, wxString> > Model_Asset::TYPE_CHOICES = 
+const std::vector<std::pair<Model_Asset::TYPE, wxString> > Model_Asset::TYPE_CHOICES =
 {
     {Model_Asset::TYPE_PROPERTY, wxString(wxTRANSLATE("Property"))}
     , {Model_Asset::TYPE_AUTO, wxString(wxTRANSLATE("Automobile"))}
@@ -37,7 +38,7 @@ const std::vector<std::pair<Model_Asset::TYPE, wxString> > Model_Asset::TYPE_CHO
 };
 
 Model_Asset::Model_Asset()
-: Model<DB_Table_ASSETS_V1>()
+: Model<DB_Table_ASSETS>()
 {
 }
 
@@ -97,14 +98,14 @@ double Model_Asset::balance()
     return balance;
 }
 
-DB_Table_ASSETS_V1::ASSETTYPE Model_Asset::ASSETTYPE(TYPE type, OP op)
+DB_Table_ASSETS::ASSETTYPE Model_Asset::ASSETTYPE(TYPE type, OP op)
 {
-    return DB_Table_ASSETS_V1::ASSETTYPE(all_type()[type], op);
+    return DB_Table_ASSETS::ASSETTYPE(all_type()[type], op);
 }
 
-DB_Table_ASSETS_V1::STARTDATE Model_Asset::STARTDATE(const wxDate& date, OP op)
+DB_Table_ASSETS::STARTDATE Model_Asset::STARTDATE(const wxDate& date, OP op)
 {
-    return DB_Table_ASSETS_V1::STARTDATE(date.FormatISODate(), op);
+    return DB_Table_ASSETS::STARTDATE(date.FormatISODate(), op);
 }
 
 wxDate Model_Asset::STARTDATE(const Data* r)
@@ -121,7 +122,7 @@ Model_Asset::TYPE Model_Asset::type(const Data* r)
 {
     for (const auto& item : TYPE_CHOICES) if (item.second.CmpNoCase(r->ASSETTYPE) == 0) return item.first;
 
-    return TYPE(-1);
+    return TYPE_UNKNOWN;
 }
 
 Model_Asset::TYPE Model_Asset::type(const Data& r)
@@ -132,7 +133,7 @@ Model_Asset::TYPE Model_Asset::type(const Data& r)
 Model_Asset::RATE Model_Asset::rate(const Data* r)
 {
     for (const auto & item : RATE_CHOICES) if (item.second.CmpNoCase(r->VALUECHANGE) == 0) return item.first;
-    return RATE(-1);
+    return RATE_UNKNOWN;
 }
 
 Model_Asset::RATE Model_Asset::rate(const Data& r)
@@ -150,8 +151,8 @@ double Model_Asset::value(const Data* r)
     double sum = r->VALUE;
     wxDate start_date = STARTDATE(r);
     const wxDate today = wxDate::Today();
-	wxTimeSpan diff_time = today - start_date;
-	double diff_time_in_days = static_cast<double>(diff_time.GetDays());
+    wxTimeSpan diff_time = today - start_date;
+    double diff_time_in_days = static_cast<double>(diff_time.GetDays());
     switch (rate(r))
     {
     case RATE_NONE:

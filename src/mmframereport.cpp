@@ -1,7 +1,7 @@
 /*******************************************************
  Copyright (C) 2006 Madhan Kanagavel
  Copyright (C) 2012 Stefano Giorgio
- Copyright (C) 2013, 2015 Nikolay
+ Copyright (C) 2013, 2015 Nikolay Akimov
  Copyright (C) 2014, 2017 James Higley
  Copyright (C) 2014 Guan Lisheng (guanlisheng@gmail.com)
 
@@ -22,16 +22,15 @@
 
 #include "images_list.h"
 #include "mmframe.h"
-#include "reports/allreport.h"
-#include "model/Model_Budgetyear.h"
-#include "model/Model_Report.h"
+#include "reports/reportbase.h"
+#include "Model_Budgetyear.h"
+#include "Model_Report.h"
 
 const char *group_report_template = R"(
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8" />
-    <meta http - equiv = "Content-Type" content = "text/html" />
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
     <title><TMPL_VAR REPORTNAME></title>
     <script src = "ChartNew.js"></script>
     <script src = "sorttable.js"></script>
@@ -69,7 +68,7 @@ const char *group_report_template = R"(
 class mmGeneralGroupReport : public mmPrintableBase
 {
 public:
-    mmGeneralGroupReport(const wxString& groupname): mmPrintableBase(_("General Group Report"))
+    explicit mmGeneralGroupReport(const wxString& groupname): mmPrintableBase(_("General Group Report"))
         , m_group_name(groupname)
     {
         m_sub_reports = Model_Report::instance().find(Model_Report::GROUPNAME(groupname));
@@ -86,7 +85,7 @@ public:
         report(L"CONTENTS") = contents;
 
         wxString out = wxEmptyString;
-        try 
+        try
         {
             out = report.Process();
         }
@@ -118,19 +117,19 @@ void mmGUIFrame::updateReportNavigation(wxTreeItemId& reports, bool budget)
 
     wxTreeItemId reportGroup;
     wxString reportGroupName;
-    for (int r = 0; r < Option::instance().ReportCount(); r++)
+    for (int r = 0; r < Option::instance().getReportCount(); r++)
     {
-        wxString groupName = Option::instance().ReportGroup(r);
+        const wxString& groupName = Option::instance().getReportGroup(r);
         bool no_group = groupName.IsEmpty();
         if (reportGroupName != groupName && !no_group)
         {
             bool bAdd = false;
-            for (int s = 0; (s < Option::instance().ReportCount()) && !bAdd; s++)
+            for (int s = 0; (s < Option::instance().getReportCount()) && !bAdd; s++)
             {
-                if (Option::instance().ReportGroup(s) == groupName)
+                if (Option::instance().getReportGroup(s) == groupName)
                 {
-                    bool a = !Option::instance().HideReport(s);
-                    if (a && Option::instance().BudgetReport(s))
+                    bool a = !Option::instance().getHideReport(s);
+                    if (a && Option::instance().getBudgetReport(s))
                         a = budget;
                     if (a)
                         bAdd = true;
@@ -138,24 +137,28 @@ void mmGUIFrame::updateReportNavigation(wxTreeItemId& reports, bool budget)
             }
             if (bAdd)
             {
-                reportGroup = m_nav_tree_ctrl->AppendItem(reports, groupName, img::PIECHART_PNG, img::PIECHART_PNG);
+                reportGroup = m_nav_tree_ctrl->AppendItem(reports
+                    , wxGetTranslation(groupName), img::PIECHART_PNG, img::PIECHART_PNG);
                 m_nav_tree_ctrl->SetItemData(reportGroup, new mmTreeItemData(groupName));
                 reportGroupName = groupName;
             }
         }
-        bool bShow = !Option::instance().HideReport(r);
-        if (bShow && Option::instance().BudgetReport(r))
+        bool bShow = !Option::instance().getHideReport(r);
+        if (bShow && Option::instance().getBudgetReport(r))
             bShow = budget;
+
         if (bShow)
         {
-            wxString reportName = Option::instance().ReportName(r);
-            wxTreeItemId item = m_nav_tree_ctrl->AppendItem(no_group ? reports : reportGroup, reportName, img::PIECHART_PNG, img::PIECHART_PNG);
-            m_nav_tree_ctrl->SetItemData(item, new mmTreeItemData(reportName, Option::instance().ReportFunction(r)));
+            const auto& reportName = Option::instance().getReportName(r);
+            wxTreeItemId item = m_nav_tree_ctrl->AppendItem(no_group ? reports : reportGroup
+                , wxGetTranslation(reportName), img::PIECHART_PNG, img::PIECHART_PNG);
+            m_nav_tree_ctrl->SetItemData(item
+                , new mmTreeItemData(reportName, Option::instance().getReportFunction(r)));
         }
     }
 
     //////////////////////////////////////////////////////////////////
-    
+
     /*GRM Reports*/
     auto records = Model_Report::instance().all();
     //Sort by group name and report name
@@ -181,9 +184,4 @@ void mmGUIFrame::updateReportNavigation(wxTreeItemId& reports, bool budget)
         m_nav_tree_ctrl->SetItemData(item, new mmTreeItemData(r->REPORTNAME, new mmGeneralReport(r)));
     }
 
-    //////////////////////////////////////////////////////////////////
-
-    // Sort the list of reports
-    m_nav_tree_ctrl->SortChildren(reports);
 }
-

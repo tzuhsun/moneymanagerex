@@ -1,9 +1,9 @@
 /*******************************************************
-Copyright (C) 2006 Madhan Kanagavel
-Copyright (C) 2012 Stefano Giorgio
-Copyright (C) 2013 Nikolay
-Copyright (C) 2014, 2017 James Higley
-Copyright (C) 2014 Guan Lisheng (guanlisheng@gmail.com)
+ Copyright (C) 2006 Madhan Kanagavel
+ Copyright (C) 2012 Stefano Giorgio
+ Copyright (C) 2013 Nikolay
+ Copyright (C) 2014, 2017 James Higley
+ Copyright (C) 2014 Guan Lisheng (guanlisheng@gmail.com)
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -25,12 +25,10 @@ Copyright (C) 2014 Guan Lisheng (guanlisheng@gmail.com)
 #define MM_FRAME_H_
 //----------------------------------------------------------------------------
 #include <wx/aui/aui.h>
-#include <wx/toolbar.h>
 #include <vector>
 #include "option.h"
 #include "constants.h"
 #include "util.h"
-
 //----------------------------------------------------------------------------
 class wxSQLite3Database;
 class mmPrintableBase;
@@ -38,14 +36,15 @@ class mmPanelBase;
 class mmHomePagePanel;
 class mmTreeItemData;
 class mmCheckingPanel;
-class mmStockPanel;
 class mmBudgetingPanel;
 class mmBillsDepositsPanel;
+class mmStocksPanel;
 class mmFileHistory;
 class CommitCallbackHook;
 class UpdateCallbackHook;
 class ModelBase;
 class mmGUIApp;
+class wxToolBar;
 //----------------------------------------------------------------------------
 
 class mmGUIFrame : public wxFrame
@@ -59,8 +58,8 @@ public:
     void setGotoAccountID(int account_id, long transID = -1);
     bool financialYearIsDifferent()
     {
-        return (Option::instance().FinancialYearStartDay() != "1" ||
-                Option::instance().FinancialYearStartMonth() != "1");
+        return (Option::instance().getFinancialYearStartDay() != "1" ||
+                Option::instance().getFinancialYearStartMonth() != "1");
     }
     /// return the index (mmex::EDocFile) to return the correct file.
     int getHelpFileIndex() const
@@ -85,7 +84,6 @@ private:
 
     /* Currently open file name */
     wxString m_filename;
-    wxString m_password;
 
     int gotoAccountID_;
     int gotoTransID_;
@@ -121,11 +119,11 @@ private:
     void resetNavTreeControl();
     void cleanupNavTreeControl(wxTreeItemId& item);
     wxSizer* cleanupHomePanel(bool new_sizer = true);
-    bool openFile(const wxString& fileName, bool openingNew, const wxString &password = "");
+    bool openFile(const wxString& fileName, const bool openingNew, const bool encrypt, const wxString &password = wxEmptyString);
+    bool createDataStore(const wxString& fileName, const bool openingNew, const bool encrypt, const wxString &passwd);
     void InitializeModelTables();
-    bool createDataStore(const wxString& fileName, const wxString &passwd, bool openingNew);
     void createMenu();
-    void CreateToolBar();
+    void createToolBar();
     void createReportsPage(mmPrintableBase* rb, bool cleanup);
     void createHelpPage();
     void refreshPanelData();
@@ -133,6 +131,7 @@ private:
     mmHomePagePanel* homePage_;
     void createHomePage();
     mmCheckingPanel* checkingAccountPage_;
+    mmStocksPanel* stockAccountPage_;
     void createCheckingAccountPage(int accountID);
     void createStocksAccountPage(int accountID);
 
@@ -158,8 +157,8 @@ private:
 
     void OnNew(wxCommandEvent& event);
     void OnOpen(wxCommandEvent& event);
-    void OnConvertEncryptedDB(wxCommandEvent& event);
-    void OnChangeEncryptPassword(wxCommandEvent& event);
+    void OnSetPassword(wxCommandEvent& event);
+    void OnRemovePassword(wxCommandEvent& event);
     void OnVacuumDB(wxCommandEvent& event);
     void OnDebugDB(wxCommandEvent& event);
     void OnSaveAs(wxCommandEvent& event);
@@ -167,7 +166,7 @@ private:
     void OnExportToXML(wxCommandEvent& event);
     void OnExportToQIF(wxCommandEvent& event);
     void OnExportToHtml(wxCommandEvent& event);
-    void OnImportQFX(wxCommandEvent& event);
+    void OnExportToWebApp(wxCommandEvent& event);
     void OnImportUniversalCSV(wxCommandEvent& event);
     void OnImportXML(wxCommandEvent& event);
     void OnImportQIF(wxCommandEvent& event);
@@ -181,9 +180,9 @@ private:
 
     bool m_hide_share_accounts;
     void OnHideShareAccounts(wxCommandEvent &event);
+    void OnChangeGUILanguage(wxCommandEvent &event);
 
     void OnViewToolbar(wxCommandEvent &event);
-    void OnViewStatusbar(wxCommandEvent &event);
     void OnViewLinks(wxCommandEvent &event);
     void OnViewBudgetFinancialYears(wxCommandEvent &event);
     void OnViewBudgetTransferTotal(wxCommandEvent &event);
@@ -204,13 +203,15 @@ private:
     void OnCategoryRelocation(wxCommandEvent& event);
     void OnPayeeRelocation(wxCommandEvent& event);
     void OnNewTransaction(wxCommandEvent& event);
-    void refreshPanelData(wxCommandEvent& /*event*/);
+    void refreshPanelData(wxCommandEvent& WXUNUSED(event));
 
     void OnOptions(wxCommandEvent& event);
     void OnBudgetSetupDialog(wxCommandEvent& event);
     void OnCurrency(wxCommandEvent& event);
+    void OnRates(wxCommandEvent& event);
     void OnTransactionReport(wxCommandEvent& event);
     void OnGeneralReportManager(wxCommandEvent& event);
+    void OnCustomFieldsManager(wxCommandEvent& event);
 
     void OnHelp(wxCommandEvent& event);
     void OnShowAppStartDialog(wxCommandEvent& WXUNUSED(event));
@@ -242,13 +243,13 @@ private:
     wxMenu* m_menuRecentFiles;
 
     void OnRecentFiles(wxCommandEvent& event);
-    void OnClearRecentFiles(wxCommandEvent& /*event*/);
+    void OnClearRecentFiles(wxCommandEvent& WXUNUSED(event));
 
     void OnHideShowReport(wxCommandEvent& event);
 
     /** Sets the database to the new database selected by the user */
-    void SetDatabaseFile(const wxString& dbFileName, bool newDatabase = false);
-    
+    void SetDatabaseFile(const wxString& dbFileName, bool newDatabase = false, bool eencrypt = false, const wxString& password = wxEmptyString);
+
     // Required to prevent memory leaks.
     CommitCallbackHook* m_commit_callback_hook;
     UpdateCallbackHook* m_update_callback_hook;
@@ -287,17 +288,21 @@ private:
         MENU_RSS,
         MENU_SLACK,
         MENU_DONATE,
+        MENU_CROWDIN,
         MENU_REPORTISSUES,
         MENU_BUY_COFFEE,
         MENU_GOOGLEPLAY,
         MENU_TWITTER, // end range for OnSimpleURLOpen
-        MENU_REPORT_BUG,
         MENU_EXPORT_CSV,
         MENU_EXPORT_XML,
         MENU_EXPORT_QIF,
+        MENU_EXPORT_WEBAPP,
         MENU_SHOW_APPSTART,
         MENU_EXPORT_HTML,
         MENU_CURRENCY,
+        MENU_RATES,
+        MENU_LANG,
+        MENU_LANG_MAX = MENU_LANG + wxLANGUAGE_USER_DEFINED,
 
         MENU_IMPORT_MMNETCSV,
         MENU_IMPORT_QIF,
@@ -309,8 +314,8 @@ private:
         MENU_VIEW_HIDE_SHARE_ACCOUNTS,
         MENU_CATEGORY_RELOCATION,
         MENU_PAYEE_RELOCATION,
-        MENU_CONVERT_ENC_DB,
-        MENU_CHANGE_ENCRYPT_PASSWORD,
+        MENU_SET_PASSWORD,
+        MENU_REMOVE_PASSWORD,
         MENU_DB_VACUUM,
         MENU_DB_DEBUG,
         MENU_ONLINE_UPD_CURRENCY_RATE,

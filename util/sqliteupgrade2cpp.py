@@ -1,48 +1,42 @@
 #!/usr/bin/env python
-# vi:tabstop=4:expandtab:shiftwidth=4:softtabstop=4:autoindent:smarttab
+# vi:tabstop=4:expandtab:shiftwidth=4:softtabstop=4:autoindent:smarttab:fileencoding=utf-8
 '''
 Usage: python sqliteupgrade2cpp.py path_to_database_folder
 '''
 
-import datetime
-import fnmatch
 import os
 import sys
+import re
+import glob
+import subprocess
+from io import open
 
-def getVersion(FileName):
-    FileName = FileName[17:]
-    Version = FileName.partition(".")[0]
+numbers = re.compile(r'(\d+)')
+def numericalSort(value):
+    parts = numbers.split(value)
+    parts[1::2] = map(int, parts[1::2])
+    return parts
+
+def getVersion(path):
+    Version = numbers.search(os.path.basename(path)).group(1)
     return int(Version) if Version else 0
 
 def getFileContent(FileName):
-  if os.path.exists(FileName):
-    fp = open(FileName, "r")
-    content = fp.read()
-    fp.close()
-    return content
+    if os.path.exists(FileName):
+        with open(FileName, "r", encoding='utf-8') as fp:
+            content = fp.read()
+        return content
 
-StrHeader = '''//=============================================================================
-/**
- *      Copyright (c) 2016 - %s Gabriele-V
- *
- *      @author [%s]
- *
- *      @brief
- *
- *      Revision History:
- *          AUTO GENERATED at %s.
- *          DO NOT EDIT!
- */
-//=============================================================================
-'''% (datetime.date.today().year, os.path.basename(__file__), str(datetime.datetime.now()))
+def split_string(string, charleng):
+    return [string[i:i+charleng] for i in range(0, len(string), charleng)]
 
-StrHeader += '''
-#ifndef DB_UPGRADE_H_
-#define DB_UPGRADE_H_
-
-#include <vector>
-#include <wx/string.h>
-'''
+def gitLastModified(*fnames):
+    """return date string for the last commit modifing files given"""
+    cmd = ['git', 'log', '-n1', '--pretty=format:%ci', '--']
+    func = 'commonpath' if 'commonpath' in dir(os.path) else 'commonprefix'
+    cpath = os.path.dirname(getattr(os.path, func)(fnames)) or None
+    cmd.extend([os.path.relpath(f, cpath) if cpath else f for f in fnames])
+    return subprocess.check_output(cmd, universal_newlines=True, cwd=cpath)
 
 StrUpgradeQuery = '''
 const std::vector<wxString> dbUpgradeQuery =
@@ -50,21 +44,20 @@ const std::vector<wxString> dbUpgradeQuery =
 '''
 
 LatestVersion = 0
-folder = sys.argv[1]
-for root, dirs, files in os.walk(folder):
-        for name in sorted(files, key=getVersion):
-            if fnmatch.fnmatch(name, 'database_version_*.sql'):
-                FileContent = getFileContent(os.path.join(folder, name)).replace('\n','\n        ')
-                LatestVersion = getVersion(name)
-                StrUpgradeQuery += '''    // Upgrade to version %i
-    R"(
-        %s
-    )",
+sqlfiles = sorted(glob.glob(os.path.join(sys.argv[1], 'database_version_*.sql')), key=numericalSort)
+if not sqlfiles:
+    print(__doc__)
+    sys.exit(1)
 
-'''% (LatestVersion, FileContent)
+for sqlfile in sqlfiles:
+    FileContent = getFileContent(sqlfile).replace('\n','\n\t\t')
+    LatestVersion = getVersion(sqlfile)
+    StrUpgradeQuery += '''\t// Upgrade to version %i'''%(LatestVersion)
+    for string in split_string(FileContent, 10240):
+        StrUpgradeQuery += '''\n\tR"(%s)"'''% (string)
+    StrUpgradeQuery += ''',\n\n'''
 
-StrUpgradeQuery += '''};
-'''
+StrUpgradeQuery += '''};\n'''
 
 StrLatestVersion = '''
 const int dbLatestVersion = %i;
@@ -74,6 +67,19 @@ strEnd = '''
 #endif // DB_UPGRADE_H_
 '''
 
-fp = open('DB_Upgrade.h', 'w')
-fp.write(StrHeader + StrLatestVersion + StrUpgradeQuery + strEnd)
-fp.close
+StrHeader = u'''/** @file
+ * @brief     Compilation of SQL scripts to upgrade MMEX db version
+ * @warning   Auto generated with %s script. DO NOT EDIT!
+ * @copyright © 2016-2018 Gabriele-V
+ * @date      %s
+ */
+
+#ifndef DB_UPGRADE_H_
+#define DB_UPGRADE_H_
+
+#include <vector>
+#include <wx/string.h>
+'''% (os.path.basename(__file__), gitLastModified(__file__, *sqlfiles) or 'unknown')
+
+with open('DB_Upgrade.h', 'w', encoding='utf-8') as fp:
+    fp.write(StrHeader + StrLatestVersion + StrUpgradeQuery + strEnd)

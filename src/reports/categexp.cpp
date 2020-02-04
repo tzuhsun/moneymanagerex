@@ -19,12 +19,11 @@
 
 #include "categexp.h"
 #include "budget.h"
-#include "htmlbuilder.h"
-
-#include "htmlbuilder.h"
+#include "reports/htmlbuilder.h"
+#include "reports/mmDateRange.h"
 #include "option.h"
 #include <algorithm>
-#include "model/Model_Category.h"
+#include "Model_Category.h"
 
 #define CATEGORY_SORT_BY_NAME        1
 #define CATEGORY_SORT_BY_AMOUNT      2
@@ -42,7 +41,7 @@ mmReportCategoryExpenses::~mmReportCategoryExpenses()
 
 int mmReportCategoryExpenses::report_parameters()
 {
-    return RepParams::DATE_RANGE | RepParams::CHART;
+    return RepParams::DATE_RANGE | RepParams::CHART | RepParams::ACCOUNTS_LIST;
 }
 
 void  mmReportCategoryExpenses::RefreshData()
@@ -51,10 +50,10 @@ void  mmReportCategoryExpenses::RefreshData()
     wxString color;
     std::map<int, std::map<int, std::map<int, double> > > categoryStats;
     Model_Category::instance().getCategoryStats(categoryStats
+        , accountArray_
         , const_cast<mmDateRange*>(m_date_range)
-        , Option::instance().IgnoreFutureTransactions()
-        , false
-        , m_date_range->is_with_date());
+        , Option::instance().getIgnoreFutureTransactions()
+        , false);
 
     data_holder line;
     int i = 0;
@@ -122,9 +121,10 @@ wxString mmReportCategoryExpenses::getHTMLText()
     mmHTMLBuilder hb;
     hb.init();
     hb.addDivContainer();
-    hb.addHeader(2, title());
-    hb.addDateNow();
+    hb.addHeader(2, getReportTitle());
+    hb.addHeader(3, getAccountNames());
     hb.DisplayDateHeading(m_date_range->start_date(), m_date_range->end_date(), m_date_range->is_with_date());
+    hb.addDateNow();
 
     hb.addDivRow();
     hb.addDivCol17_67();
@@ -178,7 +178,7 @@ wxString mmReportCategoryExpenses::getHTMLText()
         hb.addTableCell(entry.name);
         hb.addMoneyCell(entry.amount);
         if (group_counter[entry.categs] > 1)
-            hb.addTableCell("");
+            hb.addEmptyTableCell();
         else
             hb.addMoneyCell(entry.amount);
         hb.endTableRow();
@@ -186,10 +186,10 @@ wxString mmReportCategoryExpenses::getHTMLText()
         if (group_counter[entry.categs] == group && group_counter[entry.categs] > 1)
         {
             group = 0;
-            hb.startTableRow();
-            if (getChartSelection() == 0) hb.addTableCell("");
+            hb.startTableRow("WhiteSmoke");
+            if (getChartSelection() == 0) hb.addEmptyTableCell();
             hb.addTableCell(_("Category Total: "));
-            hb.addTableCell("");
+            hb.addEmptyTableCell();
             hb.addMoneyCell(group_total[entry.categs]);
             hb.endTableRow();
         }

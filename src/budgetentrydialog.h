@@ -19,8 +19,10 @@
 #ifndef MM_EX_BUDGETENTRYDIALOG_H_
 #define MM_EX_BUDGETENTRYDIALOG_H_
 
-#include "mmtextctrl.h"
-#include "model/Model_Budget.h"
+#include <wx/dialog.h>
+#include "Model_Budget.h"
+class mmTextCtrl;
+class wxChoice;
 
 class mmBudgetEntryDialog : public wxDialog
 {
@@ -50,7 +52,7 @@ private:
     void OnTextEntered(wxCommandEvent& event);
 
     Model_Budget::Data* budgetEntry_;
-    wxChoice* m_choiceItem;
+    wxChoice* m_FrequencyChooser;
     mmTextCtrl* m_textAmount;
     wxChoice* m_choiceType;
 

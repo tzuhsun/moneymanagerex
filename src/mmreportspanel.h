@@ -21,9 +21,15 @@
 #define MM_EX_REPORTSPANEL_H_
 
 #include "mmpanelbase.h"
-#include "reports/reportbase.h"
+class wxWebView;
 class mmGUIFrame;
 class mmDateRange;
+class wxChoice;
+class wxDatePickerCtrl;
+class wxDateEvent;
+class wxChoice;
+class mmPrintableBase;
+
 class mmReportsPanel : public mmPanelBase
 {
     wxDECLARE_EVENT_TABLE();
@@ -84,7 +90,7 @@ public:
 
     enum RepPanel
     {
-        ID_CHOICE_DATE_RANGE = wxID_HIGHEST + 1,
+        ID_CHOICE_DATE_RANGE = wxID_HIGHEST + 555,
         ID_CHOICE_ACCOUNTS,
         ID_CHOICE_START_DATE,
         ID_CHOICE_END_DATE,
@@ -96,4 +102,3 @@ public:
 };
 
 #endif
-

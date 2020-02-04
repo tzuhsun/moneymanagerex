@@ -1,24 +1,12 @@
 [submodule "3rd/wxsqlite3"]
 	path = 3rd/wxsqlite3
 	url = https://github.com/utelle/wxsqlite3.git
-[submodule "3rd/mongoose"]
-	path = 3rd/mongoose
-	url = https://github.com/cesanta/mongoose.git
 [submodule "3rd/LuaGlue"]
 	path = 3rd/LuaGlue
 	url = https://github.com/moneymanagerex/LuaGlue.git
 [submodule "3rd/cgitemplate"]
 	path = 3rd/cgitemplate
 	url = https://github.com/moneymanagerex/html-template.git
-[submodule "3rd/cajun"]
-	path = 3rd/cajun
-	url = https://github.com/moneymanagerex/cajun.git
-[submodule "3rd/csv-parser"]
-	path = 3rd/csv-parser
-	url = https://github.com/moneymanagerex/csv-parser.git
-[submodule "3rd/cppunit"]
-	path = 3rd/cppunit
-	url = https://github.com/moneymanagerex/cppunit.git
 [submodule "3rd/sorttable.js"]
 	path = 3rd/sorttable.js
 	url = https://github.com/diepes/sorttable.js.git
@@ -28,3 +16,9 @@
 [submodule "database"]
 	path = database
 	url = https://github.com/moneymanagerex/database
+[submodule "3rd/rapidjson"]
+	path = 3rd/rapidjson
+	url = https://github.com/Tencent/rapidjson
+[submodule "3rd/lua"]
+	path = 3rd/lua
+	url = https://github.com/lua/lua.git

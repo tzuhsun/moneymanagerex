@@ -6,12 +6,12 @@
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation; either version 2 of the License, or
  (at your option) any later version.
- 
+
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -22,7 +22,8 @@
 #include "constants.h"
 #include "mmex.h"
 #include "mmframe.h"
-#include "model/Model_Usage.h"
+#include "Model_Usage.h"
+#include <wx/webview.h>
 
 BEGIN_EVENT_TABLE(mmHelpPanel, wxPanel)
     EVT_BUTTON(wxID_BACKWARD, mmHelpPanel::OnHelpPageBack)
@@ -52,7 +53,7 @@ bool mmHelpPanel::Create( wxWindow *parent, wxWindowID winid,
 }
 
 void mmHelpPanel::CreateControls()
-{    
+{
     wxBoxSizer* itemBoxSizer2 = new wxBoxSizer(wxVERTICAL);
     this->SetSizer(itemBoxSizer2);
 
@@ -66,41 +67,38 @@ void mmHelpPanel::CreateControls()
     wxButton* buttonBack     = new wxButton(itemPanel3, wxID_BACKWARD, _("&Back"));
     wxButton* buttonFordward = new wxButton(itemPanel3, wxID_FORWARD, _("&Forward") );
 
-    wxString helpHeader = wxString::Format(_("%1$s - %2$s"), mmex::getProgramName(), _("Help"));
     wxStaticText* itemStaticText9 = new wxStaticText(itemPanel3, wxID_ANY
-        , helpHeader);
+        , mmex::getCaption(_("Help")));
     itemStaticText9->SetFont(this->GetFont().Larger().Bold());
 
     itemBoxSizerHeader->Add(buttonBack, 0, wxLEFT, 5);
     itemBoxSizerHeader->Add(buttonFordward, 0, wxLEFT | wxRIGHT, 5);
     itemBoxSizerHeader->Add(itemStaticText9, 0, wxLEFT | wxTOP, 5);
 
-    browser_ = wxWebView::New(this, wxID_ANY);
-    itemBoxSizer2->Add(browser_, 1, wxGROW | wxALL, 1);
-    
     /**************************************************************************
     Allows help files for a specific language.
 
     Main default help file name: ./help/index.html
     Default filename names can be found in mmex::getPathDoc(fileIndex)
-    
+
     Default help files will be used when the language help file are not found.
     **************************************************************************/
 
     int helpFileIndex = m_frame->getHelpFileIndex();
     const wxString help_file = wxString::Format("file://%s?lang=%s"
-        , mmex::getPathDoc((mmex::EDocFile)helpFileIndex)
-        , Option::instance().Language());
+        , mmex::getPathDoc(static_cast<mmex::EDocFile>(helpFileIndex))
+        , Option::instance().getLanguageISO6391());
 
     //wxLogDebug("%s", help_file);
-    browser_->LoadURL(help_file);
+    browser_ = wxWebView::New(this, wxID_ANY, help_file);
+    itemBoxSizer2->Add(browser_, 1, wxGROW | wxALL, 1);
 }
 
 void mmHelpPanel::sortTable()
 {
 }
 
-void mmHelpPanel::OnHelpPageBack(wxCommandEvent& /*event*/)
+void mmHelpPanel::OnHelpPageBack(wxCommandEvent& WXUNUSED(event))
 {
     if (browser_->CanGoBack())
     {
@@ -109,7 +107,7 @@ void mmHelpPanel::OnHelpPageBack(wxCommandEvent& /*event*/)
     }
 }
 
-void mmHelpPanel::OnHelpPageForward(wxCommandEvent& /*event*/)
+void mmHelpPanel::OnHelpPageForward(wxCommandEvent& WXUNUSED(event))
 {
     if (browser_->CanGoForward() )
     {

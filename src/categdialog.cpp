@@ -25,14 +25,14 @@
 #include "paths.h"
 #include "constants.h"
 #include "webapp.h"
-#include "model/Model_Setting.h"
-#include "model/Model_Payee.h"
-#include "model/Model_Infotable.h"
+#include "Model_Setting.h"
+#include "Model_Payee.h"
+#include "Model_Infotable.h"
 
 wxIMPLEMENT_DYNAMIC_CLASS(mmCategDialog, wxDialog);
 
 wxBEGIN_EVENT_TABLE(mmCategDialog, wxDialog)
-EVT_BUTTON(wxID_OK, mmCategDialog::OnBSelect)
+EVT_BUTTON(wxID_APPLY, mmCategDialog::OnBSelect)
 EVT_BUTTON(wxID_CANCEL, mmCategDialog::OnCancel)
 EVT_BUTTON(wxID_ADD, mmCategDialog::OnAdd)
 EVT_BUTTON(wxID_REMOVE, mmCategDialog::OnDelete)
@@ -143,7 +143,7 @@ void mmCategDialog::fillControls()
                 {
                     wxTreeItemId subcateg = m_treeCtrl->AppendItem(maincat, sub_category.SUBCATEGNAME);
                     m_treeCtrl->SetItemData(subcateg, new mmTreeItemCateg(category, sub_category));
-                    if (!bShow) 
+                    if (!bShow)
                         m_treeCtrl->SetItemTextColour(subcateg, wxColour("GREY"));
 
                     if (m_categ_id == category.CATEGID && m_subcateg_id == sub_category.SUBCATEGID)
@@ -163,6 +163,7 @@ void mmCategDialog::fillControls()
     m_treeCtrl->EnsureVisible(selectedItemId_);
 
     m_buttonSelect->Disable();
+    m_buttonDelete->Disable();
     m_buttonEdit->Disable();
     m_buttonAdd->Enable();
     m_buttonRelocate->Enable(m_enable_relocate);
@@ -231,21 +232,24 @@ void mmCategDialog::CreateControls()
 
     m_buttonDelete = new wxButton(buttonsPanel, wxID_REMOVE, _("&Delete "));
     itemBoxSizer66->Add(m_buttonDelete, g_flagsH);
-    m_buttonDelete->SetToolTip(_("Delete an existing category. The category cannot be used by existing transactions."));
+    m_buttonDelete->SetToolTip(_("Select an unused category to delete."));
 
     wxStdDialogButtonSizer* itemBoxSizer9 = new wxStdDialogButtonSizer;
     buttonsSizer->Add(itemBoxSizer9, wxSizerFlags(g_flagsExpand).Border(wxALL, 0));
 
-    m_buttonSelect = new wxButton(buttonsPanel, wxID_OK, _("&Select"));
-    itemBoxSizer9->Add(m_buttonSelect, wxSizerFlags(g_flagsExpand).Proportion(4));
+    m_buttonSelect = new wxButton(buttonsPanel, wxID_APPLY, _("&Select"));
+    itemBoxSizer9->Add(m_buttonSelect, wxSizerFlags(g_flagsExpand).ReserveSpaceEvenIfHidden().Proportion(4));
     m_buttonSelect->SetToolTip(_("Select the currently selected category as the selected category for the transaction"));
+    m_buttonSelect->Show(m_enable_select);
 
     //Some interfaces has no any close buttons, it may confuse user. Cancel button added
-    wxButton* itemCancelButton = new wxButton(buttonsPanel, wxID_CANCEL, wxGetTranslation(g_CancelLabel));
+    wxButton* itemCancelButton = new wxButton(buttonsPanel, wxID_CANCEL
+        , wxGetTranslation(m_enable_select ? g_CancelLabel : g_CloseLabel));
     itemBoxSizer9->Add(itemCancelButton, g_flagsH);
+
 }
 
-void mmCategDialog::OnAdd(wxCommandEvent& /*event*/)
+void mmCategDialog::OnAdd(wxCommandEvent& WXUNUSED(event))
 {
     wxString prompt_msg = _("Enter the name for the new category:");
     if (selectedItemId_ == root_)
@@ -326,7 +330,7 @@ void mmCategDialog::showCategDialogDeleteError(bool category)
     wxMessageBox(deleteCategoryErrMsg, _("Organise Categories: Delete Error"), wxOK | wxICON_ERROR);
 }
 
-void mmCategDialog::OnDelete(wxCommandEvent& /*event*/)
+void mmCategDialog::OnDelete(wxCommandEvent& WXUNUSED(event))
 {
     if (!selectedItemId_ || selectedItemId_ == root_)
         return;
@@ -345,14 +349,20 @@ void mmCategDialog::OnDelete(wxCommandEvent& /*event*/)
         if (Model_Category::is_used(categID) || categID == m_init_selected_categ_id)
             return showCategDialogDeleteError();
         else
+        {
             Model_Category::instance().remove(categID);
+            mmWebApp::MMEX_WebApp_UpdateCategory();
+        }
     }
     else
     {
         if (Model_Category::is_used(categID, subcategID) || ((categID == m_init_selected_categ_id) && (subcategID == m_init_selected_subcateg_id)))
             return showCategDialogDeleteError(false);
         else
+        {
             Model_Subcategory::instance().remove(subcategID);
+            mmWebApp::MMEX_WebApp_UpdateCategory();
+        }
     }
 
     m_refresh_requested = true;
@@ -390,13 +400,13 @@ void mmCategDialog::OnDelete(wxCommandEvent& /*event*/)
     selectedItemId_ = PreviousItem;
 }
 
-void mmCategDialog::OnBSelect(wxCommandEvent& /*event*/)
+void mmCategDialog::OnBSelect(wxCommandEvent& WXUNUSED(event))
 {
     if (selectedItemId_ != root_ && selectedItemId_)
-        EndModal(wxID_OK);
+        EndModal(wxID_APPLY);
 }
 
-void mmCategDialog::OnDoubleClicked(wxTreeEvent& /*event*/)
+void mmCategDialog::OnDoubleClicked(wxTreeEvent& WXUNUSED(event))
 {
     if (selectedItemId_ != root_ && selectedItemId_ && m_enable_select)
     {
@@ -404,11 +414,11 @@ void mmCategDialog::OnDoubleClicked(wxTreeEvent& /*event*/)
             (m_treeCtrl->GetItemData(selectedItemId_));
         m_categ_id = iData->getCategData()->CATEGID;
         m_subcateg_id = iData->getSubCategData()->SUBCATEGID;
-        EndModal(wxID_OK);
+        EndModal(wxID_APPLY);
     }
 }
 
-void mmCategDialog::OnCancel(wxCommandEvent& /*event*/)
+void mmCategDialog::OnCancel(wxCommandEvent& WXUNUSED(event))
 {
     EndModal(wxID_CANCEL);
 }
@@ -421,20 +431,23 @@ void mmCategDialog::OnSelChanged(wxTreeEvent& event)
     if (!selectedItemId_) return;
     if (selectedItemId != selectedItemId_) m_treeCtrl->SelectItem(selectedItemId_);
 
-    mmTreeItemCateg* iData =
-        dynamic_cast<mmTreeItemCateg*>(m_treeCtrl->GetItemData(selectedItemId_));
-    if (!iData) return;
-
-    m_categ_id = iData->getCategData()->CATEGID;
-    m_subcateg_id = iData->getSubCategData()->SUBCATEGID;
-
-    if (selectedItemId_ == root_)
+    const bool bRootSelected = selectedItemId_ == root_;
+    if (bRootSelected)
     {
-        m_buttonSelect->Disable();
+        m_categ_id = -1;
+        m_subcateg_id = -1;
+        m_buttonDelete->Disable();
+        m_buttonDelete->SetToolTip(_("Select an unused category to delete."));
     }
     else
     {
-        m_buttonSelect->Enable(m_enable_select);
+        mmTreeItemCateg* iData =
+            dynamic_cast<mmTreeItemCateg*>(m_treeCtrl->GetItemData(selectedItemId_));
+        wxASSERT(iData);
+
+        m_categ_id = iData->getCategData()->CATEGID;
+        m_subcateg_id = iData->getSubCategData()->SUBCATEGID;
+
         bool bUsed = Model_Category::is_used(m_categ_id, m_subcateg_id);
         if (m_subcateg_id == -1)
         {
@@ -444,13 +457,32 @@ void mmCategDialog::OnSelChanged(wxTreeEvent& event)
                 bUsed = (bUsed || Model_Category::is_used(m_categ_id, s.SUBCATEGID));
         }
 
-        m_buttonDelete->SetForegroundColour(!bUsed && !m_treeCtrl->ItemHasChildren(selectedItemId_) ? wxNullColour : wxColor(*wxRED));
+        if (bUsed)
+        {
+            m_buttonDelete->Disable();
+            m_buttonDelete->SetToolTip(_("This category cannot be deleted because it's used by transactions."));
+        }
+        else
+        {
+            if (!m_treeCtrl->ItemHasChildren(selectedItemId_))
+            {
+                m_buttonDelete->Enable();
+                m_buttonDelete->SetToolTip(_("Delete an existing category."));
+            }
+            else
+            {
+                m_buttonDelete->Disable();
+                m_buttonDelete->SetToolTip(_("Subcategories must be deleted before."));
+            }
+        }
     }
+
     m_buttonAdd->Enable(m_subcateg_id == -1);
-    m_buttonEdit->Enable(selectedItemId_ != root_);
+    m_buttonEdit->Enable(!bRootSelected);
+    m_buttonSelect->Enable(!bRootSelected);
 }
 
-void mmCategDialog::OnEdit(wxCommandEvent& /*event*/)
+void mmCategDialog::OnEdit(wxCommandEvent& WXUNUSED(event))
 {
     if (selectedItemId_ == root_ || !selectedItemId_)
         return;
@@ -558,7 +590,7 @@ void mmCategDialog::setTreeSelection(const wxString& catName, const wxString& su
     }
 }
 
-void mmCategDialog::OnCategoryRelocation(wxCommandEvent& /*event*/)
+void mmCategDialog::OnCategoryRelocation(wxCommandEvent& WXUNUSED(event))
 {
     relocateCategoryDialog dlg(this, m_categ_id, m_subcateg_id);
     if (dlg.ShowModal() == wxID_OK)
@@ -573,7 +605,7 @@ void mmCategDialog::OnCategoryRelocation(wxCommandEvent& /*event*/)
     }
 }
 
-void mmCategDialog::OnExpandChbClick(wxCommandEvent& /*event*/)
+void mmCategDialog::OnExpandChbClick(wxCommandEvent& WXUNUSED(event))
 {
     if (m_cbExpand->IsChecked())
     {
@@ -590,7 +622,7 @@ void mmCategDialog::OnExpandChbClick(wxCommandEvent& /*event*/)
     Model_Setting::instance().Set("EXPAND_CATEGS_TREE", m_cbExpand->IsChecked());
 }
 
-void mmCategDialog::OnShowHiddenChbClick(wxCommandEvent& /*event*/)
+void mmCategDialog::OnShowHiddenChbClick(wxCommandEvent& WXUNUSED(event))
 {
     Model_Setting::instance().Set("SHOW_HIDDEN_CATEGS", m_cbShowAll->IsChecked());
     fillControls();

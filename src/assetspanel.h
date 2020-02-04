@@ -18,13 +18,15 @@
  ********************************************************/
 
 #pragma once
-#include "mmpanelbase.h"
-#include "model/Model_Asset.h"
-#include "model/Model_Account.h"
-#include "mmframe.h"
 
+#include "mmpanelbase.h"
+#include "Model_Asset.h"
+#include "Model_Account.h"
+class wxStaticText;
 class wxListEvent;
 class mmAssetsPanel;
+class mmGUIFrame;
+class wxButton;
 
 /* Custom ListCtrl class that implements virtual LC style */
 class mmAssetsListCtrl: public mmListCtrl
@@ -96,15 +98,12 @@ class mmAssetsPanel : public mmPanelBase
 
 public:
     mmAssetsPanel(mmGUIFrame* frame, wxWindow *parent, wxWindowID winid, const wxString& name="mmAssetsPanel");
-    mmGUIFrame* m_frame;
 
     void updateExtraAssetData(int selIndex);
-    wxString getItem(long item, long column);
+    const wxString getItem(long item, long column) const;
 
-    Model_Asset::Data_Set m_assets;
-    Model_Asset::TYPE m_filter_type;
-    int col_max() { return COL_MAX; }
-    int col_sort() { return COL_DATE; }
+    int getColMax() const { return COL_MAX; }
+    int getDefSortColumn() const { return COL_DATE; }
 
     wxString BuildPage() const { return m_listCtrlAssets->BuildPage(_("Assets")); }
 
@@ -112,14 +111,22 @@ public:
     void ViewAssetTrans(const int selected_index);
     void GotoAssetAccount(const int selected_index);
     void sortTable();
+    wxStaticText* getHeaderText() const { return m_header_text; }
+    mmGUIFrame * getAssetPanelFrame() const { return m_frame; }
+    Model_Asset::Data_Set getAssetDataSet() const { return m_assets; }
+    void setAssetDataSet(const Model_Asset::Data_Set& assets) { m_assets = assets; }
+    Model_Asset::TYPE getFilterType() const { return m_filter_type; }
 
-    wxStaticText* m_header_text;
 private:
+    Model_Asset::Data_Set m_assets;
+    Model_Asset::TYPE m_filter_type;
+    mmGUIFrame * m_frame;
+    wxStaticText* m_header_text;
     void enableEditDeleteButtons(bool enable);
     void OnSearchTxtEntered(wxCommandEvent& event);
     mmAssetsListCtrl* m_listCtrlAssets;
 
-    wxStaticText* m_itemStaticTextMainFilter;
+    wxButton* m_bitmapTransFilter;
 
     wxScopedPtr<wxImageList> m_imageList;
 
@@ -136,7 +143,7 @@ private:
     void OnDeleteAsset(wxCommandEvent& event);
     void OnEditAsset(wxCommandEvent& event);
     void OnOpenAttachment(wxCommandEvent& event);
-    void OnMouseLeftDown ( wxMouseEvent& event );
+    void OnMouseLeftDown(wxCommandEvent& event);
     void OnAddAssetTrans(wxCommandEvent& event);
     void OnViewAssetTrans(wxCommandEvent& event);
 

@@ -17,7 +17,9 @@
  ********************************************************/
 
 #include "forecast.h"
-#include "model/Model_Checking.h"
+#include "option.h"
+#include "reports/mmDateRange.h"
+#include "Model_Checking.h"
 
 class mm_html_template;
 
@@ -39,16 +41,16 @@ wxString mmReportForecast::getHTMLText()
 {
     std::map<wxString, std::pair<double, double> > amount_by_day;
     Model_Checking::Data_Set all_trans;
-    
+
     if (m_date_range && m_date_range->is_with_date())
-        all_trans = Model_Checking::instance().find(DB_Table_CHECKINGACCOUNT_V1::TRANSDATE(m_date_range->start_date().FormatISODate(), GREATER_OR_EQUAL)
-                    , DB_Table_CHECKINGACCOUNT_V1::TRANSDATE(m_date_range->end_date().FormatISODate(), LESS_OR_EQUAL));
+        all_trans = Model_Checking::instance().find(DB_Table_CHECKINGACCOUNT::TRANSDATE(m_date_range->start_date().FormatISODate(), GREATER_OR_EQUAL)
+                    , DB_Table_CHECKINGACCOUNT::TRANSDATE(m_date_range->end_date().FormatISODate(), LESS_OR_EQUAL));
     else
         all_trans = Model_Checking::instance().all();
 
     for (const auto & trx : all_trans)
     {
-        if (Model_Checking::type(trx) == Model_Checking::TRANSFER) 
+        if (Model_Checking::type(trx) == Model_Checking::TRANSFER)
             continue;
 
         amount_by_day[trx.TRANSDATE].first += Model_Checking::withdrawal(trx, -1);
@@ -60,20 +62,20 @@ wxString mmReportForecast::getHTMLText()
     {
         row_t r;
         r(L"DATE") = kv.first;
-        r(L"WITHDRAWAL") = wxString::Format("%f", kv.second.first);
-        r(L"DEPOSIT") = wxString::Format("%f", kv.second.second);
+        r(L"WITHDRAWAL") = wxString::FromCDouble(kv.second.first, 6);
+        r(L"DEPOSIT") = wxString::FromCDouble(kv.second.second, 6);
 
         contents += r;
     }
 
     mm_html_template report(this->m_template);
-    report(L"REPORTNAME") = this->title();
+    report(L"REPORTNAME") = this->getReportTitle();
     report(L"CONTENTS") = contents;
-    report(L"GRAND") = wxString::Format("%ld", (long)amount_by_day.size());
-    report(L"HTMLSCALE") = wxString::Format("%d", Option::instance().HtmlFontSize());
+    report(L"GRAND") = wxString::Format("%zu", amount_by_day.size());
+    report(L"HTMLSCALE") = wxString::Format("%d", Option::instance().getHtmlFontSize());
 
     wxString out = wxEmptyString;
-    try 
+    try
     {
         out = report.Process();
     }
@@ -93,16 +95,15 @@ const char * mmReportForecast::m_template = R"(
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8" />
-    <meta http - equiv = "Content-Type" content = "text/html" />
-    <title><TMPL_VAR REPORTNAME></title>
-    <script src = "ChartNew.js"></script>
-    <script src = "sorttable.js"></script>
-    <link href = "master.css" rel = "stylesheet" />
-    <style>
-        canvas {max-height: 400px; min-height: 100px;}
-        body {font-size: <TMPL_VAR HTMLSCALE>%;};
-    </style>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title><TMPL_VAR REPORTNAME></title>
+  <script src = "ChartNew.js"></script>
+  <script src = "sorttable.js"></script>
+  <link href = "master.css" rel = "stylesheet" />
+  <style>
+      canvas {max-height: 400px; min-height: 100px;}
+      body {font-size: <TMPL_VAR HTMLSCALE>%;};
+  </style>
 </head>
 <body>
 
@@ -110,8 +111,8 @@ const char * mmReportForecast::m_template = R"(
 <h3><TMPL_VAR REPORTNAME>
 
 <select id="chart-type" onchange='onChartChange(this)'>
-    <option value="line" selected>Line Chart</option>
-    <option value="bar">Bar Chart</option>
+  <option value="line" selected>Line Chart</option>
+  <option value="bar">Bar Chart</option>
 </select>
 </h3>
 <TMPL_VAR TODAY><hr>
@@ -122,67 +123,45 @@ const char * mmReportForecast::m_template = R"(
 
 <canvas id="mycanvas" height="200" width="600"></canvas>
 <script>
-    var data = {
-    labels: [
-            <TMPL_LOOP NAME=CONTENTS>
-                <TMPL_IF NAME=__LAST__>
-                    "<TMPL_VAR DATE>"
-                <TMPL_ELSE>
-                    "<TMPL_VAR DATE>",
-                </TMPL_IF>
-            </TMPL_LOOP>
-            ],
-    datasets: [
-        {
-            fillColor : 'rgba(129, 172, 123, 0.5)',
-            strokeColor : 'rgba(129, 172, 123, 1)',
-            pointColor : 'rgba(129, 172, 123, 1)', 
-            pointStrokeColor : "#fff",
-            data : [
-                    <TMPL_LOOP NAME=CONTENTS>
-                        <TMPL_IF NAME=__LAST__>
-                            <TMPL_VAR WITHDRAWAL> 
-                        <TMPL_ELSE>
-                            <TMPL_VAR WITHDRAWAL>,
-                        </TMPL_IF>
-                    </TMPL_LOOP>
-                    ],
-            title : "WITHDRAWAL"
-        },
-        {
-            fillColor : 'rgba(129, 172, 123, 0.5)',
-            strokeColor : 'rgba(129, 172, 123, 1)',
-            pointColor : 'rgba(129, 172, 123, 1)', 
-            pointStrokeColor : "#fff",
-            data : [
-                    <TMPL_LOOP NAME=CONTENTS>
-                        <TMPL_IF NAME=__LAST__>
-                            <TMPL_VAR DEPOSIT>
-                        <TMPL_ELSE>
-                            <TMPL_VAR DEPOSIT>,
-                        </TMPL_IF>
-                    </TMPL_LOOP>
-                    ],
-            title : "DEPOSIT"
-        }
-        ]
-    }
-    var opts= { annotateDisplay : true, responsive : true };
+  var data = {
+  labels: [
+<TMPL_LOOP NAME=CONTENTS> <TMPL_IF NAME=__LAST__> "<TMPL_VAR DATE>" <TMPL_ELSE> "<TMPL_VAR DATE>", </TMPL_IF> </TMPL_LOOP>],
+datasets: [
+  {
+      fillColor : 'rgba(230, 21, 22, 0.7)',
+      strokeColor : 'rgba(230, 21, 22, 1)',
+      pointColor : 'rgba(230, 21, 22, 1)',
+      pointStrokeColor : "#fff",
+      data : [
+<TMPL_LOOP NAME=CONTENTS> <TMPL_IF NAME=__LAST__> <TMPL_VAR WITHDRAWAL> <TMPL_ELSE> <TMPL_VAR WITHDRAWAL>, </TMPL_IF> </TMPL_LOOP>],
+      title : "WITHDRAWAL"
+  },
+  {
+      fillColor : 'rgba(129, 172, 123, 0.7)',
+      strokeColor : 'rgba(129, 172, 123, 1)',
+      pointColor : 'rgba(129, 172, 123, 1)',
+      pointStrokeColor : "#fff",
+      data : [
+<TMPL_LOOP NAME=CONTENTS> <TMPL_IF NAME=__LAST__> <TMPL_VAR DEPOSIT> <TMPL_ELSE> <TMPL_VAR DEPOSIT>, </TMPL_IF> </TMPL_LOOP>],
+      title : "DEPOSIT"
+  }
+]
+}
+var opts= { annotateDisplay : true, responsive : true, pointDot:false, datasetFill:true };
 
-    window.onload = function() {
-        var myBar = new Chart(document.getElementById("mycanvas").getContext("2d")).Line(data,opts);
-    }
+window.onload = function() {
+  var myBar = new Chart(document.getElementById("mycanvas").getContext("2d")).Line(data,opts);
+}
 
-    function onChartChange(select){
-        var value = select.value;
-        if (value == "line") {
-           new Chart(document.getElementById("mycanvas").getContext("2d")).Line(data,opts); 
-        }
-        else if (value == "bar") {
-           new Chart(document.getElementById("mycanvas").getContext("2d")).Bar(data,opts);
-        }
-    }
-
+function onChartChange(select){
+  var value = select.value;
+  if (value == "line") {
+    new Chart(document.getElementById("mycanvas").getContext("2d")).Line(data,opts);
+  }
+  else if (value == "bar") {
+    new Chart(document.getElementById("mycanvas").getContext("2d")).Bar(data,opts);
+  }
+}
 </script>
 </div></div></div></body>
 </html>

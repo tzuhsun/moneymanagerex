@@ -23,12 +23,10 @@ Microsoft Windows
 
    | Name               | Version | Toolset |
    |--------------------|:-------:|:-------:|
-   | Visual Studio 2008 |   9.0   |    90   |
-   | Visual Studio 2010 |  10.0   |   100   |
-   | Visual Studio 2012 |  11.0   |   110   |
    | Visual Studio 2013 |  12.0   |   120   |
    | Visual Studio 2015 |  14.0   |   140   |
-   | Visual Studio 2017 |  15.0   |   141   |
+   | Visual Studio 2017 |  15.x   |   141   |
+   | Visual Studio 2019 |  16.x   |   142   |
 
 2. If you use Visual Studio older then 2013 Update 1 download and install
    [Git for Windows] with default options.
@@ -37,9 +35,9 @@ Microsoft Windows
 
 4. Download [wxWidgets 3.x binaries]:
    - `wxWidgets-3.*.*_Headers.7z`
-   - one of `wxMSW-3.*.*-vc141_Dev.7z` or `wxMSW-3.*.*-vc141_x64_Dev.7z`
-   - one of `wxMSW-3.*.*-vc141_ReleaseDLL.7z`
-     or `wxMSW-3.*.*-vc141_x64_ReleaseDLL.7z`
+   - one of `wxMSW-3.*.*-vc14x_Dev.7z` or `wxMSW-3.*.*-vc14x_x64_Dev.7z`
+   - one of `wxMSW-3.*.*-vc14x_ReleaseDLL.7z`
+     or `wxMSW-3.*.*-vc14x_x64_ReleaseDLL.7z`
    
    Unpack archives to `c:\wxWidgets\` or `c:\Program Files\wxWidgets\`.
 
@@ -56,12 +54,12 @@ Microsoft Windows
 
    Or start the following command from start menu:
 
-       %comspec% /k "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat x86"
+       %comspec% /k "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x86
 
    Following command can be used with older VS versions (change 14.0 for
    correct version number):
 
-       %comspec% /k "%ProgramFiles(x86)%\Microsoft Visual Studio 14.0\VC\vcvarsall.bat x86"
+       %comspec% /k "%ProgramFiles(x86)%\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
 
    Change `x86` parameter to `amd64` for native 64-bit build.
 
@@ -95,7 +93,27 @@ __All following commands must be run from this command prompt!__
 
    See previous step for instructions if git command is not recognized.
 
-8. Then you should follow one of  
+8. [Download sources of curl], unpack them to `c:\` and build [libcurl]
+   library with following commands:
+
+       mkdir c:\curl-<version>\build
+       cd c:\curl-<version>\build
+       set "PATH=%PATH%;%DevEnvDir%CommonExtensions\Microsoft\CMake\CMake\bin"
+       cmake -G "Visual Studio 15 2017" -DBUILD_CURL_EXE=OFF -DCURL_DISABLE_LDAP=ON ^
+         -DCURL_DISABLE_LDAPS=ON -DCURL_DISABLE_TELNET=ON -DCURL_DISABLE_DICT=ON ^
+         -DCURL_DISABLE_FILE=ON -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_RTSP=ON ^
+         -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_IMAP=ON -DCURL_DISABLE_SMTP=ON ^
+         -DCURL_DISABLE_GOPHER=ON -DENABLE_MANUAL=OFF -DBUILD_TESTING=OFF ^
+         -DBUILD_SHARED_LIBS=OFF -DCMAKE_USE_WINSSL=ON ^
+         -DCMAKE_INSTALL_PREFIX=c:\libcurl ..
+       set "CL=/MP"
+       cmake --build . --target install --config Release --clean-first ^
+         -- /maxcpucount /verbosity:minimal /nologo /p:PreferredToolArchitecture=x64
+
+   Replace `Visual Studio 15 2017` with `Visual Studio 15 2017 Win64`
+   for 64-bit.
+
+9. Then you should follow one of  
    [Visual Studio project] | [Visual Studio CLI] | [Visual Studio CMake]
 
 ### Visual Studio GUI with project file
@@ -108,7 +126,7 @@ tools to manage projects in VS IDE.
        mkdir c:\projects\mmex\build
        cd c:\projects\mmex\build
        set "PATH=%PATH%;%DevEnvDir%CommonExtensions\Microsoft\CMake\CMake\bin"
-       cmake -G "Visual Studio 15 2017" ..
+       cmake -G "Visual Studio 15 2017" -DCMAKE_PREFIX_PATH=c:\libcurl ..
 
    Replace `Visual Studio 15 2017` with `Visual Studio 15 2017 Win64`
    for 64-bit.
@@ -166,10 +184,20 @@ CMake_ option installed.
 
 2. Select target like `x64-Debug` in project settings drop-down.
 
-3. Run `CMake`->`Install`->`Project MMEX` menu command before debugging
+3. Set path to libcurl library using `CMake`->`Change CMake Settings` then adding following variables into _CMakeSettings.json_:
+
+       "variables": [
+         {
+           "name": "CMAKE_PREFIX_PATH",
+           "value": "c:\libcurl"
+         }
+        
+   See detailed instructions for [configuring CMake projects] from Microsoft _Visual C++ Team Blog_.
+
+4. Run `CMake`->`Install`->`Project MMEX` menu command before debugging
    session start with `CMake`->`Debug`->`src\mmex.exe`.
 
-4. Select `src\mmex.exe` in `Select Startup Item` drop-down to unlock commands
+5. Select `src\mmex.exe` in `Select Startup Item` drop-down to unlock commands
    in Debug menu.
 
 
@@ -313,4 +341,9 @@ Same as for [macOS](#3-compile-and-create-package)
     .appveyor.yml
 [IDE Team Services]:
     https://www.visualstudio.com/en-us/docs/git/tutorial/clone#clone-a-repo
-    
+[Download sources of curl]:
+    //curl.haxx.se/latest.cgi?curl=zip
+[libcurl]:
+    https://curl.haxx.se/libcurl/
+[configuring CMake projects]:
+    https://blogs.msdn.microsoft.com/vcblog/2016/10/05/cmake-support-in-visual-studio/#configure-cmake

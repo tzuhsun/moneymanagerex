@@ -19,8 +19,11 @@
 
 #include "summary.h"
 #include "constants.h"
-#include "htmlbuilder.h"
-#include "model/allmodel.h"
+#include "reports/htmlbuilder.h"
+#include "Model_Account.h"
+#include "Model_CurrencyHistory.h"
+#include "Model_Stock.h"
+#include "Model_StockHistory.h"
 #include <algorithm>
 
 class mmHistoryItem
@@ -51,13 +54,14 @@ public:
 
 double mmHistoryData::getDailyBalanceAt(const Model_Account::Data *account, const wxDate& date)
 {
-    wxString strDate = date.FormatISODate();
+    const wxString& strDate = date.FormatISODate();
     std::map<int, double> totBalance;
 
     for (const auto & stock : *this)
     {
-        if (stock.acctId != account->id())
+        if (stock.acctId != account->id()) {
             continue;
+        }
 
         wxString precValueDate, nextValueDate;
 
@@ -83,8 +87,9 @@ double mmHistoryData::getDailyBalanceAt(const Model_Account::Data *account, cons
                 nextValueDate = hist.DATE;
             }
             // end conditions: prec value assigned and price date < requested date
-            if (precValue != 0.0 && hist.DATE < strDate)
+            if (precValue != 0.0 && hist.DATE < strDate) {
                 break;
+            }
         }
         if (valueAtDate == 0.0)
         {
@@ -100,8 +105,9 @@ double mmHistoryData::getDailyBalanceAt(const Model_Account::Data *account, cons
                 nextValue = precValue;
                 nextValueDate = precValueDate;
             }
-            if (precValue > 0.0 && nextValue > 0.0 && precValueDate >= stock.purchaseDateStr && nextValueDate >= stock.purchaseDateStr)
+            if (precValue > 0.0 && nextValue > 0.0 && precValueDate >= stock.purchaseDateStr && nextValueDate >= stock.purchaseDateStr) {
                 valueAtDate = precValue;
+            }
         }
 
         totBalance[stock.stockId] += stock.numShares * valueAtDate;
@@ -121,7 +127,8 @@ mmReportSummaryByDate::mmReportSummaryByDate(int mode)
 
 wxString mmReportSummaryByDate::getHTMLText()
 {
-    double          total, balancePerDay[6];
+    size_t account_types_num = Model_Account::INVESTMENT + 1;
+    std::map<size_t, double> balancePerDay;
     mmHTMLBuilder   hb;
     wxString        datePrec;
     wxDate          date, dateStart = wxDate::Today(), dateEnd = wxDate::Today();
@@ -129,9 +136,9 @@ wxString mmReportSummaryByDate::getHTMLText()
     mmHistoryItem   *pHistItem;
     mmHistoryData   arHistory;
     std::vector<balanceMap> balanceMapVec(Model_Account::instance().all().size());
-    std::vector<std::map<wxDate, double>::const_iterator>   arIt(balanceMapVec.size());
+    std::vector<std::map<wxDate, double>::const_iterator> arIt(balanceMapVec.size());
     std::vector<double> arBalance(balanceMapVec.size());
-    std::vector<wxString>   totBalanceData;
+    std::vector<wxString> totBalanceData;
     std::vector<wxDate> arDates;
 
     hb.init();
@@ -150,6 +157,7 @@ wxString mmReportSummaryByDate::getHTMLText()
     hb.addTableHeaderCell(_("Credit Card Accounts"), true);
     hb.addTableHeaderCell(_("Loan Accounts"), true);
     hb.addTableHeaderCell(_("Term Accounts"), true);
+    hb.addTableHeaderCell(_("Crypto Wallets"), true);
     hb.addTableHeaderCell(_("Total"), true);
     hb.addTableHeaderCell(_("Stocks"), true);
     hb.addTableHeaderCell(_("Balance"), true);
@@ -173,10 +181,11 @@ wxString mmReportSummaryByDate::getHTMLText()
             if (Model_Account::type(account) != Model_Account::TERM && balanceMapVec[i].size())
             {
                 date = balanceMapVec[i].begin()->first;
-                if (date.IsEarlierThan(dateStart))
+                if (date.IsEarlierThan(dateStart)) {
                     dateStart = date;
+                }
             }
-            arBalance[i] = account.INITIALBAL * Model_CurrencyHistory::getDayRate(currency->id(), dateStart.FormatISODate());
+            arBalance[i] = account.INITIALBAL * Model_CurrencyHistory::getDayRate(currency->id(), dateStart);
         }
         else
         {
@@ -211,42 +220,51 @@ wxString mmReportSummaryByDate::getHTMLText()
         span = wxDateSpan::Years(1);
     }
     else
-        wxASSERT(0);
+    {
+        wxFAIL_MSG("unknown report mode");
+    }
 
     date = dateEnd;
-    while (date.IsLaterThan(dateStart))
+    while (date.IsLaterThan(dateStart)) {
         date -= span;
+    }
     dateStart = date;
 
     int c = 0;
-    for (const auto& acctMap: balanceMapVec)
+    for (const auto& acctMap : balanceMapVec) {
         arIt[c++] = acctMap.begin();
+    }
 
     //  prepare the dates array
     while (dateStart <= dateEnd)
     {
-        if (mode_ == 0)
+        if (mode_ == 0) {
             dateStart.SetToLastMonthDay(dateStart.GetMonth(), dateStart.GetYear());
+        }
         arDates.push_back(dateStart);
         dateStart += span;
     }
-    date = wxDate::Today();
+    date = wxDate::Today().SetToLastMonthDay();
     if (date.GetDay() != dateEnd.GetDay()
         || date.GetMonth() != dateEnd.GetMonth()
-        || date.GetYear() != dateEnd.GetYear())
+        || date.GetYear() != dateEnd.GetYear()) {
         arDates.push_back(date);
+    }
+
 
     for (const auto & dd : arDates)
     {
         int k = 0;
+        double total = 0.0;
         for (auto& account: Model_Account::instance().all())
         {
             if (Model_Account::type(account) != Model_Account::INVESTMENT)
             {
                 for (; arIt[k] != balanceMapVec[k].end(); ++arIt[k])
                 {
-                    if (arIt[k]->first.IsLaterThan(dd))
+                    if (arIt[k]->first.IsLaterThan(dd)) {
                         break;
+                    }
                     arBalance[k] += arIt[k]->second;
                 }
             }
@@ -254,8 +272,9 @@ wxString mmReportSummaryByDate::getHTMLText()
             {
                 double convRate = 1.0;
                 Model_Currency::Data* currency = Model_Account::currency(account);
-                if (currency)
-                    convRate = Model_CurrencyHistory::getDayRate(currency->id(), dd.FormatISODate());
+                if (currency) {
+                    convRate = Model_CurrencyHistory::getDayRate(currency->id(), dd);
+                }
                 arBalance[k] = arHistory.getDailyBalanceAt(&account, dd) * convRate;
             }
             k++;
@@ -263,20 +282,27 @@ wxString mmReportSummaryByDate::getHTMLText()
 
         // prepare columns for report: date, cash, checking, credit card, term, partial total, investment, grand total
         totBalanceData.push_back(dd.FormatISODate());
-        for (int j = 0; j < 6; j++)
+        for (size_t j = 0; j < account_types_num; j++) {
             balancePerDay[j] = 0.0;
+        }
         int a = 0;
         for (const auto& account: Model_Account::instance().all())
         {
-            balancePerDay[Model_Account::type(account)] += arBalance[a++];
+            double t = arBalance[a++];
+            balancePerDay[Model_Account::type(account)] += t;
         }
+
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::CASH]));
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::CHECKING]));
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::CREDIT_CARD]));
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::LOAN]));
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::TERM]));
-        total = balancePerDay[Model_Account::CASH] + balancePerDay[Model_Account::CHECKING] + balancePerDay[Model_Account::CREDIT_CARD]
-            + balancePerDay[Model_Account::LOAN] + balancePerDay[Model_Account::TERM];
+        totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::CRYPTO]));
+
+        total = balancePerDay[Model_Account::CASH] + balancePerDay[Model_Account::CHECKING]
+            + balancePerDay[Model_Account::CREDIT_CARD] + balancePerDay[Model_Account::LOAN]
+            + balancePerDay[Model_Account::TERM] + balancePerDay[Model_Account::CRYPTO];
+
         totBalanceData.push_back(Model_Currency::toCurrency(total));
         totBalanceData.push_back(Model_Currency::toCurrency(balancePerDay[Model_Account::INVESTMENT]));
         total += balancePerDay[Model_Account::INVESTMENT];
@@ -284,20 +310,21 @@ wxString mmReportSummaryByDate::getHTMLText()
     }
 
     hb.startTbody();
-    for (int k = totBalanceData.size() - 9; k >= 0; k -= 9)
+    int x = 1 + (account_types_num) + 2;
+    for (int k = totBalanceData.size() - x; k >= 0; k -= x)
     {
         if (datePrec.Left(4) != totBalanceData[k].Left(4))
         {
             hb.startTotalTableRow();
             hb.addTableCell(totBalanceData[k].Left(4));
-            for (int j = 0; j < 8; j++)
-                hb.addTableCell("");
+            hb.addEmptyTableCell(x-1);
             hb.endTableRow();
         }
         hb.startTableRow();
         hb.addTableCellDate(totBalanceData[k]);
-        for (int j = 0; j < 8; j++)
+        for (int j = 0; j < x - 1; j++) {
             hb.addTableCell(totBalanceData[k + j + 1], true);
+        }
         hb.endTableRow();
         datePrec = totBalanceData[k];
     }

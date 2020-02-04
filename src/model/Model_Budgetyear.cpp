@@ -20,7 +20,7 @@
 #include "Model_Budget.h"
 
 Model_Budgetyear::Model_Budgetyear()
-: Model<DB_Table_BUDGETYEAR_V1>()
+: Model<DB_Table_BUDGETYEAR>()
 {
 }
 
@@ -118,7 +118,7 @@ bool Model_Budgetyear::Exists(const wxString& year_name)
 {
     for (const auto& record: this->all())
     {
-        if (record.BUDGETYEARNAME == year_name) 
+        if (record.BUDGETYEARNAME == year_name)
             return true;
     }
     return false;

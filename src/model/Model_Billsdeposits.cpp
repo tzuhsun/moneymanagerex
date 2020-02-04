@@ -43,7 +43,7 @@ const std::vector<std::pair<Model_Billsdeposits::STATUS_ENUM, wxString> > Model_
 };
 
 Model_Billsdeposits::Model_Billsdeposits()
-: Model<DB_Table_BILLSDEPOSITS_V1>()
+: Model<DB_Table_BILLSDEPOSITS>()
 , m_autoExecuteManual (false)
 , m_autoExecuteSilent (false)
 , m_requireExecution (false)
@@ -112,7 +112,7 @@ wxDate Model_Billsdeposits::NEXTOCCURRENCEDATE(const Data* r)
 {
     return Model::to_date(r->NEXTOCCURRENCEDATE);
 }
-    
+
 wxDate Model_Billsdeposits::NEXTOCCURRENCEDATE(const Data& r)
 {
     return Model::to_date(r.NEXTOCCURRENCEDATE);
@@ -124,7 +124,7 @@ Model_Billsdeposits::TYPE Model_Billsdeposits::type(const wxString& r)
     const auto it = cache.find(r);
     if (it != cache.end()) return it->second;
 
-    for (const auto& t : TYPE_CHOICES) 
+    for (const auto& t : TYPE_CHOICES)
     {
         if (r.CmpNoCase(t.second) == 0)
         {
@@ -152,7 +152,7 @@ Model_Billsdeposits::STATUS_ENUM Model_Billsdeposits::status(const wxString& r)
 
     for (const auto & s : STATUS_ENUM_CHOICES)
     {
-        if (r.CmpNoCase(s.second) == 0) 
+        if (r.CmpNoCase(s.second) == 0)
         {
             cache.insert(std::make_pair(r, s.first));
             return s.first;
@@ -193,14 +193,14 @@ bool Model_Billsdeposits::remove(int id)
     return this->remove(id, db_);
 }
 
-DB_Table_BILLSDEPOSITS_V1::STATUS Model_Billsdeposits::STATUS(STATUS_ENUM status, OP op)
+DB_Table_BILLSDEPOSITS::STATUS Model_Billsdeposits::STATUS(STATUS_ENUM status, OP op)
 {
-    return DB_Table_BILLSDEPOSITS_V1::STATUS(toShortStatus(all_status()[status]), op);
+    return DB_Table_BILLSDEPOSITS::STATUS(toShortStatus(all_status()[status]), op);
 }
 
-DB_Table_BILLSDEPOSITS_V1::TRANSCODE Model_Billsdeposits::TRANSCODE(TYPE type, OP op)
+DB_Table_BILLSDEPOSITS::TRANSCODE Model_Billsdeposits::TRANSCODE(TYPE type, OP op)
 {
-    return DB_Table_BILLSDEPOSITS_V1::TRANSCODE(all_type()[type], op);
+    return DB_Table_BILLSDEPOSITS::TRANSCODE(all_type()[type], op);
 }
 
 const Model_Budgetsplittransaction::Data_Set Model_Billsdeposits::splittransaction(const Data* r)
@@ -229,28 +229,21 @@ void Model_Billsdeposits::decode_fields(const Data& q1)
     int repeats = q1.REPEATS;
     int numRepeats = q1.NUMOCCURRENCES;
 
-    if (repeats >= BD_REPEATS_MULTIPLEX_BASE)    // Auto Execute User Acknowlegement required
-    {
-        m_autoExecuteManual = true;
-        repeats -= BD_REPEATS_MULTIPLEX_BASE;
-    }
-
-    if (repeats >= BD_REPEATS_MULTIPLEX_BASE)    // Auto Execute Silent mode
-    {
-        m_autoExecuteManual = false;               // Can only be manual or auto. Not both
-        m_autoExecuteSilent = true;
-        repeats -= BD_REPEATS_MULTIPLEX_BASE;
-    }
+    switch (repeats/BD_REPEATS_MULTIPLEX_BASE)
+        {
+            case 2: m_autoExecuteSilent = true; // Auto Execute Silent mode
+                    break;                      // Can only be manual or auto. Not both
+            case 1: m_autoExecuteManual = true; // Auto Execute User Acknowlegement required
+        }
+    repeats %= BD_REPEATS_MULTIPLEX_BASE;
 
     if ((repeats < Model_Billsdeposits::REPEAT_IN_X_DAYS) || (numRepeats > Model_Billsdeposits::REPEAT_NONE) || (repeats > Model_Billsdeposits::REPEAT_EVERY_X_MONTHS))
     {
         m_allowExecution = true;
     }
 
-    if (this->daysPayment(&q1) < 1)
-    {
-        m_requireExecution = true;
-    }
+    m_requireExecution = (Model_Billsdeposits::NEXTOCCURRENCEDATE(&q1)
+            .Subtract(wxDate::Today()).GetDays() < 1);
 }
 
 bool Model_Billsdeposits::autoExecuteManual()
@@ -275,20 +268,21 @@ bool Model_Billsdeposits::allowExecution()
 
 bool Model_Billsdeposits::AllowTransaction(const Data& r, AccountBalance& bal)
 {
-	const int acct_id = r.ACCOUNTID;
+    const int acct_id = r.ACCOUNTID;
     Model_Account::Data* account = Model_Account::instance().get(acct_id);
-	double current_account_balance = 0;
+    if (!account) return false;
+    double current_account_balance = 0;
 
-	AccountBalance::iterator itr_bal = bal.find(acct_id);
-	if (itr_bal != bal.end())
-	{
-		current_account_balance = itr_bal->second;
-	}
-	else
-	{
-		current_account_balance = Model_Account::balance(account);
-		bal[acct_id] = current_account_balance;
-	}
+    AccountBalance::iterator itr_bal = bal.find(acct_id);
+    if (itr_bal != bal.end())
+    {
+        current_account_balance = itr_bal->second;
+    }
+    else
+    {
+        current_account_balance = Model_Account::balance(account);
+        bal[acct_id] = current_account_balance;
+    }
 
     double new_value = r.TRANSAMOUNT;
 
@@ -317,38 +311,12 @@ bool Model_Billsdeposits::AllowTransaction(const Data& r, AccountBalance& bal)
         abort_transaction = false;
     }
 
-	if (!abort_transaction)
-	{
-		bal[acct_id] = new_value;
-	}
+    if (!abort_transaction)
+    {
+        bal[acct_id] = new_value;
+    }
 
     return !abort_transaction;
-}
-
-int Model_Billsdeposits::daysPayment(const Data* r)
-{
-    const wxDate& payment_date = Model_Billsdeposits::NEXTOCCURRENCEDATE(r);
-    wxTimeSpan ts = payment_date.Subtract(wxDateTime::Now());
-    int daysRemaining = ts.GetDays();
-    int minutesRemaining = ts.GetMinutes();
-
-    if (minutesRemaining > 0)
-        daysRemaining += 1;
-
-    return daysRemaining;
-}
-
-int Model_Billsdeposits::daysOverdue(const Data* r)
-{
-    const wxDate& overdue_date = Model_Billsdeposits::TRANSDATE(r);
-    wxTimeSpan ts = overdue_date.Subtract(wxDateTime::Now());
-    int daysRemaining = ts.GetDays();
-    int minutesRemaining = ts.GetMinutes();
-
-    if (minutesRemaining > 0)
-        daysRemaining += 1;
-
-    return daysRemaining;
 }
 
 void Model_Billsdeposits::completeBDInSeries(int bdID)
@@ -358,10 +326,8 @@ void Model_Billsdeposits::completeBDInSeries(int bdID)
     {
         int repeats = bill->REPEATS;
         // DeMultiplex the Auto Executable fields.
-        if (repeats >= BD_REPEATS_MULTIPLEX_BASE)    // Auto Execute User Acknowlegement required
-            repeats -= BD_REPEATS_MULTIPLEX_BASE;
-        if (repeats >= BD_REPEATS_MULTIPLEX_BASE)    // Auto Execute Silent mode
-            repeats -= BD_REPEATS_MULTIPLEX_BASE;
+        repeats %= BD_REPEATS_MULTIPLEX_BASE;
+
         int numRepeats = bill->NUMOCCURRENCES;
         const wxDateTime& payment_date_current = NEXTOCCURRENCEDATE(bill);
         const wxDateTime& payment_date_update = nextOccurDate(repeats, numRepeats, payment_date_current);
@@ -375,12 +341,13 @@ void Model_Billsdeposits::completeBDInSeries(int bdID)
                 numRepeats--;
         }
 
-        if (repeats == REPEAT_TYPE::REPEAT_NONE)
+        if (repeats == REPEAT_TYPE::REPEAT_NONE) {
             numRepeats = 0;
-        else if ((repeats == REPEAT_TYPE::REPEAT_IN_X_DAYS)
-            || (repeats == REPEAT_TYPE::REPEAT_IN_X_MONTHS))
+        }
+        else if (!(repeats == REPEAT_TYPE::REPEAT_IN_X_DAYS
+            || repeats == REPEAT_TYPE::REPEAT_IN_X_MONTHS))
         {
-            if (numRepeats != -1) numRepeats = -1;
+            bill->NUMOCCURRENCES = numRepeats;
         }
 
         bill->NEXTOCCURRENCEDATE = payment_date_update.FormatISODate();
@@ -390,7 +357,6 @@ void Model_Billsdeposits::completeBDInSeries(int bdID)
         if (payment_date_current > due_date_current)
             bill->TRANSDATE = payment_date_update.FormatISODate();
 
-        bill->NUMOCCURRENCES = numRepeats;
         save(bill);
 
         if (bill->NUMOCCURRENCES == REPEAT_TYPE::REPEAT_NONE)

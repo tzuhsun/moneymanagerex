@@ -1,5 +1,5 @@
 /*******************************************************
-Copyright (C) 2006-2012
+Copyright (C) 2006-2012 Nikolay Akimov
 Copyright (C) 2017 James Higley
 
 This program is free software; you can redistribute it and/or modify
@@ -18,13 +18,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ********************************************************/
 
 #include "budgetingperf.h"
-#include "htmlbuilder.h"
+#include "reports/htmlbuilder.h"
 #include "mmex.h"
 #include "mmframe.h"
-#include "model/Model_Budgetyear.h"
-#include "model/Model_Budget.h"
-#include "model/Model_Category.h"
-#include "model/Model_Subcategory.h"
+#include "Model_Budgetyear.h"
+#include "Model_Budget.h"
+#include "Model_Category.h"
+#include "Model_Subcategory.h"
 #include "reports/mmDateRange.h"
 
 mmReportBudgetingPerformance::mmReportBudgetingPerformance()
@@ -56,7 +56,7 @@ void mmReportBudgetingPerformance::DisplayRow(mmHTMLBuilder &hb
 
             const auto val = Model_Currency::toString(i.second, Model_Currency::GetBaseCurrency());
             hb.startTableCell(wxString::Format(" style='text-align:right;%s' nowrap"
-                , (i.second - est < 0) ? "color:#FF0000;" : ""));
+                , (i.second - est < 0) ? "color:red;" : ""));
             hb.addText(val);
             hb.endTableCell();
         }
@@ -69,7 +69,7 @@ void mmReportBudgetingPerformance::DisplayRow(mmHTMLBuilder &hb
 
         const auto val = Model_Currency::toString(actual, Model_Currency::GetBaseCurrency());
         hb.startTableCell(wxString::Format(" style='text-align:right;%s' nowrap"
-            , (actual - estimated < 0) ? "color:#FF0000;" : "color:#009900;"));
+            , (actual - estimated < 0) ? "color:red;" : "color:#009900;"));
         hb.addText(val);
         hb.endTableCell();
 
@@ -115,10 +115,13 @@ wxString mmReportBudgetingPerformance::getHTMLText()
     wxDateTime yearEnd = yearBegin;
     yearEnd.Add(wxDateSpan::Year()).Subtract(wxDateSpan::Day());
 
+    // Readjust dates by the Budget Offset Option
+    Option::instance().setBudgetDateOffset(yearBegin);
+    Option::instance().setBudgetDateOffset(yearEnd);
     mmSpecifiedRange date_range(yearBegin, yearEnd);
 
     bool evaluateTransfer = false;
-    if (Option::instance().BudgetIncludeTransfers())
+    if (Option::instance().getBudgetIncludeTransfers())
     {
         evaluateTransfer = true;
     }
@@ -128,8 +131,9 @@ wxString mmReportBudgetingPerformance::getHTMLText()
     Model_Budget::instance().getBudgetEntry(m_date_selection, budgetPeriod, budgetAmt);
     std::map<int, std::map<int, std::map<int, double> > > categoryStats;
     Model_Category::instance().getCategoryStats(categoryStats
-        , &date_range, Option::instance().IgnoreFutureTransactions(),
-        true, true, (evaluateTransfer ? &budgetAmt : nullptr));
+        , nullptr
+        , &date_range, Option::instance().getIgnoreFutureTransactions()
+        , true, (evaluateTransfer ? &budgetAmt : nullptr));
     //Init totals
     const auto &allCategories = Model_Category::instance().all(Model_Category::COL_CATEGNAME);
     const auto &allSubcategories = Model_Subcategory::instance().all(Model_Subcategory::COL_SUBCATEGNAME);
@@ -154,7 +158,7 @@ wxString mmReportBudgetingPerformance::getHTMLText()
             for (const Model_Subcategory::Data& subcategory : allSubcategories)
             {
                 if (subcategory.CATEGID == category.CATEGID)
-                    totals[category.CATEGID][subcategory.SUBCATEGID] 
+                    totals[category.CATEGID][subcategory.SUBCATEGID]
                     += categoryStats[category.CATEGID][subcategory.SUBCATEGID][i.first];
             }
         }
@@ -166,8 +170,8 @@ wxString mmReportBudgetingPerformance::getHTMLText()
     hb.init();
     hb.addDivContainer();
     hb.addHeader(2, wxString::Format(_("Budget Performance for %s"), headingStr));
-    hb.addDateNow();
     hb.DisplayDateHeading(yearBegin, yearEnd);
+    hb.addDateNow();
 
     hb.startTable();
     hb.startThead();
@@ -229,7 +233,7 @@ wxString mmReportBudgetingPerformance::getHTMLText()
             for (const auto &i : categoryStats[category.CATEGID][subcategory.SUBCATEGID])
                 monthlyActual[i.first] += i.second;
 
-            DisplayRow(hb, estimated, actual, category.CATEGNAME + ": " 
+            DisplayRow(hb, estimated, actual, category.CATEGNAME + ": "
                 + subcategory.SUBCATEGNAME, categoryStats[category.CATEGID][subcategory.SUBCATEGID]);
         }
     }

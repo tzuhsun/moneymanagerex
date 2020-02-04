@@ -18,8 +18,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ********************************************************/
 
 #include "mmpanelbase.h"
-#include "model/Model_Setting.h"
+#include "Model_Setting.h"
 #include "mmreportspanel.h"
+#include "reports/reportbase.h"
+#include "util.h"
+#include <wx/webviewfshandler.h>
 
 wxBEGIN_EVENT_TABLE(mmListCtrl, wxListCtrl)
 EVT_LIST_COL_END_DRAG(wxID_ANY, mmListCtrl::OnItemResize)
@@ -36,8 +39,8 @@ mmListCtrl::mmListCtrl(wxWindow *parent, wxWindowID winid)
     , m_selected_row(-1)
     , m_selected_col(0)
     , m_asc(true)
-    , m_ColumnHeaderNbr(-1)
     , m_default_sort_column(-1)
+    , m_ColumnHeaderNbr(-1)
 {
 }
 
@@ -108,7 +111,7 @@ void mmListCtrl::OnItemResize(wxListEvent& event)
         Model_Setting::instance().Set(wxString::Format(m_col_width, i), width);
 }
 
-void mmListCtrl::OnColClick(wxListEvent& event)
+void mmListCtrl::OnColClick(wxListEvent& WXUNUSED(event))
 {
     // Default to do nothing and implement in derived class
 }
@@ -118,10 +121,10 @@ void mmListCtrl::OnColRightClick(wxListEvent& event)
     if (m_columns.size() > 0 && !m_col_width.IsEmpty())
     {
         m_ColumnHeaderNbr = event.GetColumn();
-        if (0 > m_ColumnHeaderNbr || m_ColumnHeaderNbr >= (int)m_columns.size()) return;
+        if (m_ColumnHeaderNbr < 0 || static_cast<size_t>(m_ColumnHeaderNbr) >= m_columns.size()) return;
         wxMenu menu;
         wxMenu *submenu = new wxMenu;
-        for (int i = 0; i < (int)m_columns.size(); i++)
+        for (int i = 0; i < static_cast<int>(m_columns.size()); i++)
         {
             const int id = MENU_HEADER_COLUMN + i;
             submenu->AppendCheckItem(id, m_columns[i].HEADER);
@@ -156,7 +159,7 @@ void mmListCtrl::PopupSelected(wxCommandEvent& event)
     }
 }
 
-void mmListCtrl::OnHeaderHide(wxCommandEvent& event)
+void mmListCtrl::OnHeaderHide(wxCommandEvent& WXUNUSED(event))
 {
     if (m_ColumnHeaderNbr >= 0 && !m_col_width.IsEmpty())
     {
@@ -166,17 +169,17 @@ void mmListCtrl::OnHeaderHide(wxCommandEvent& event)
     }
 }
 
-void mmListCtrl::OnHeaderSort(wxCommandEvent& event)
+void mmListCtrl::OnHeaderSort(wxCommandEvent& WXUNUSED(event))
 {
     wxListEvent e;
     e.SetId(MENU_HEADER_SORT);
     OnColClick(e);
 }
 
-void mmListCtrl::OnHeaderReset(wxCommandEvent& event)
+void mmListCtrl::OnHeaderReset(wxCommandEvent& WXUNUSED(event))
 {
     wxString parameter_name;
-    for (int i = 0; i < (int)m_columns.size(); i++)
+    for (int i = 0; i < static_cast<int>(m_columns.size()); i++)
     {
         SetColumnWidth(i, m_columns[i].WIDTH);
         if (!m_col_width.IsEmpty())
@@ -196,7 +199,7 @@ void mmListCtrl::OnHeaderColumn(wxCommandEvent& event)
 {
     int id = event.GetId();
     int columnNbr = id - MENU_HEADER_COLUMN;
-    if (columnNbr >= 0 && columnNbr < (int)m_columns.size() && !m_col_width.IsEmpty())
+    if (columnNbr >= 0 && static_cast<size_t>(columnNbr) < m_columns.size() && !m_col_width.IsEmpty())
     {
         int default_width = m_columns[columnNbr].WIDTH;
         if (default_width == 0)
@@ -221,17 +224,17 @@ void mmListCtrl::SetColumnWidthSetting(int column_number, int column_width)
 }
 
 std::vector<long> mmListCtrl::GetSelected() {
-	std::vector<long> selected = std::vector<long>();
-	long item = -1;
+    std::vector<long> selected = std::vector<long>();
+    long item = -1;
 
-	for ( ;; )
-	{
-		item = GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);    
-		if (item == -1) break;
-		else selected.push_back(item);
-	}
+    for ( ;; )
+    {
+        item = GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+        if (item == -1) break;
+        else selected.push_back(item);
+    }
 
-	return selected;
+    return selected;
 }
 
 mmPanelBase::mmPanelBase()
@@ -261,12 +264,5 @@ void mmPanelBase::PrintPage()
 
 void mmPanelBase::windowsFreezeThaw()
 {
-#ifdef __WXGTK__
-    return;
-#endif
-
-    if (this->IsFrozen())
-        this->Thaw();
-    else
-        this->Freeze();
+    ::windowsFreezeThaw(this);
 }

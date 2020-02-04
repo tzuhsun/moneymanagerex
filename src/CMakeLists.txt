@@ -1,24 +1,66 @@
-IF(NOT InMMEX)
-    MESSAGE(FATAL_ERROR "Use the top-level CMake script!")
-ENDIF(NOT InMMEX)
+get_directory_property(m_hasParent PARENT_DIRECTORY)
+if(NOT m_hasParent)
+    message(FATAL_ERROR "Use the top-level CMake script!")
+endif()
+unset(m_hasParent)
+
+include(CheckCXXCompilerFlag)
+
+# enable warnings while compile sources in src
+if(MSVC)
+    string(REGEX REPLACE "(^| )[/-](w|W[0-4])( |$)" " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    string(REGEX REPLACE "(^| )[/-](w|W[0-4])( |$)" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+else()
+    check_cxx_compiler_flag(-Wduplicated-cond Wduplicated-cond)
+    check_cxx_compiler_flag(-Wduplicated-branches Wduplicated-branches)
+    check_cxx_compiler_flag(-Wnull-dereference Wnull-dereference)
+    check_cxx_compiler_flag(-Wlogical-op Wlogical-op)
+    add_compile_options(-Wall -Wextra -Wno-unknown-pragmas -Wformat=2
+        $<$<BOOL:${Wduplicated-cond}>:-Wduplicated-cond>
+        $<$<BOOL:${Wduplicated-branches}>:-Wduplicated-branches>
+        $<$<BOOL:${Wnull-dereference}>:-Wnull-dereference>
+        $<$<BOOL:${Wlogical-op}>:-Wlogical-op>)
+    if(NOT (CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6))
+        check_cxx_compiler_flag(-Wuseless-cast Wuseless-cast)
+        add_compile_options(-Werror=old-style-cast
+            $<$<BOOL:${Wuseless-cast}>:-Werror=useless-cast>)
+    endif()
+endif()
+
+if(MSVC)
+    check_cxx_compiler_flag(/utf-8 MSVC_UFT8_CXX_FLAG)
+    if(MSVC_UFT8_CXX_FLAG)
+        # use UTF-8 for /source-charset and /execution-charset
+        add_compile_options(/utf-8)
+    else()
+        # use old pragma execution_character_set
+        file(GENERATE
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/msvc_build_header_$<CONFIG>.h
+            CONTENT "#pragma execution_character_set(\"utf-8\")"
+        )
+        add_compile_options(/FI"${CMAKE_CURRENT_BINARY_DIR}/msvc_build_header_$<CONFIG>.h")
+    endif()
+endif()
 
 # Pass version numbers to the sources
-CONFIGURE_FILE(versions.h.in versions.h @ONLY)
-INCLUDE_DIRECTORIES("${CMAKE_CURRENT_BINARY_DIR}")
+configure_file(versions.h.in versions.h @ONLY)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
-IF(APPLE)
-    SET(MMEX_PLAT_DIR mac)
-ELSEIF(UNIX)
-    SET(MMEX_PLAT_DIR unix)
-ELSEIF (WIN32)
-    SET(MMEX_PLAT_DIR win)
-    CONFIGURE_FILE(
+if(APPLE)
+    set(MMEX_PLATFDEP mac)
+elseif(UNIX)
+    set(MMEX_PLATFDEP unix)
+elseif(WIN32)
+    set(MMEX_PLATFDEP win)
+    configure_file(
         "${PROJECT_SOURCE_DIR}/resources/mmex.rc.in"
         mmex.rc @ONLY)
-    SET(MMEX_RC "${CMAKE_CURRENT_BINARY_DIR}/mmex.rc")
-ENDIF ()
+    set(MMEX_RC "${CMAKE_CURRENT_BINARY_DIR}/mmex.rc")
+endif()
 
-ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
+add_executable(${MMEX_EXE} WIN32 MACOSX_BUNDLE
     aboutdialog.cpp
     aboutdialog.h
     accountdialog.cpp
@@ -49,8 +91,6 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     constants.h
     currencydialog.cpp
     currencydialog.h
-    customfielddialog.cpp
-    customfielddialog.h
     customfieldeditdialog.cpp
     customfieldeditdialog.h
     customfieldlistdialog.cpp
@@ -72,11 +112,13 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     maincurrencydialog.h
     minimal_editor.cpp
     minimal_editor.h
-    mmCalculator.cpp
-    mmCalculator.h
     mmcheckingpanel.cpp
     mmcheckingpanel.h
     mmcombobox.h
+    mmcustomdata.cpp
+    mmcustomdata.h
+    mmex.cpp
+    mmex.h
     mmframe.cpp
     mmframe.h
     mmframereport.cpp
@@ -91,7 +133,8 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     mmreportspanel.h
     mmSimpleDialogs.cpp
     mmSimpleDialogs.h
-    mmtextctrl.h
+    mmTextCtrl.cpp
+    mmTextCtrl.h
     mmTips.h
     option.cpp
     option.h
@@ -145,14 +188,13 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     webappdialog.cpp
     webappdialog.h
     webapp.h
-    webserver.cpp
-    webserver.h
     wizard_newaccount.cpp
     wizard_newaccount.h
     wizard_newdb.cpp
     wizard_newdb.h
     wizard_update.cpp
     wizard_update.h
+    wx_compat.h
 
     import_export/export.cpp
     import_export/export.h
@@ -167,39 +209,40 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     import_export/univcsvdialog.cpp
     import_export/univcsvdialog.h
 
-    db/DB_Table_Accountlist_V1.h
-    db/DB_Table_Assets_V1.h
-    db/DB_Table_Attachment_V1.h
-    db/DB_Table_Billsdeposits_V1.h
-    db/DB_Table_Budgetsplittransactions_V1.h
-    db/DB_Table_Budgettable_V1.h
-    db/DB_Table_Budgetyear_V1.h
-    db/DB_Table_Category_V1.h
-    db/DB_Table_Checkingaccount_V1.h
-    db/DB_Table_Currencyformats_V1.h
-    db/DB_Table_Currencyhistory_V1.h
-    db/DB_Table_Customfielddata_V1.h
-    db/DB_Table_Customfield_V1.h
-    db/DB_Table.h
-    db/DB_Table_Infotable_V1.h
-    db/DB_Table_Payee_V1.h
-    db/DB_Table_Report_V1.h
-    db/DB_Table_Setting_V1.h
-    db/DB_Table_Shareinfo_V1.h
-    db/DB_Table_Splittransactions_V1.h
-    db/DB_Table_Stockhistory_V1.h
-    db/DB_Table_Stock_V1.h
-    db/DB_Table_Subcategory_V1.h
-    db/DB_Table_Translink_V1.h
-    db/DB_Table_Usage_V1.h
+    db/Table_Accountlist.h
+    db/Table_Assets.h
+    db/Table_Attachment.h
+    db/Table_Billsdeposits.h
+    db/Table_Budgetsplittransactions.h
+    db/Table_Budgettable.h
+    db/Table_Budgetyear.h
+    db/Table_Category.h
+    db/Table_Checkingaccount.h
+    db/Table_Currencyformats.h
+    db/Table_Currencyhistory.h
+    db/Table_Customfielddata.h
+    db/Table_Customfield.h
+    db/Table.h
+    db/Table_Infotable.h
+    db/Table_Payee.h
+    db/Table_Report.h
+    db/Table_Setting_V1.h
+    db/Table_Shareinfo.h
+    db/Table_Splittransactions.h
+    db/Table_Stockhistory.h
+    db/Table_Stock.h
+    db/Table_Subcategory.h
+    db/Table_Translink.h
+    db/Table_Usage_V1.h
+    db/DB_Upgrade.h
 
-    reports/allreport.h
     reports/budgetcategorysummary.cpp
     reports/budgetcategorysummary.h
     reports/budget.cpp
     reports/budget.h
     reports/budgetingperf.cpp
     reports/budgetingperf.h
+    reports/bugreport.h
     reports/cashflow.cpp
     reports/cashflow.h
     reports/categexp.cpp
@@ -227,7 +270,6 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     reports/transactions.cpp
     reports/transactions.h
 
-    model/allmodel.h
     model/Model_Account.cpp
     model/Model_Account.h
     model/Model_Asset.cpp
@@ -279,59 +321,57 @@ ADD_LIBRARY(MMEXLib STATIC EXCLUDE_FROM_ALL
     model/Model_Usage.h
 
     "${CMAKE_CURRENT_BINARY_DIR}/versions.h"
-    "${MMEX_PLAT_DIR}/platfdep.cpp")
-
-ADD_EXECUTABLE(${MMEX_EXE} WIN32 MACOSX_BUNDLE
-    mmex.cpp
-    mmex.h
+    "platfdep_${MMEX_PLATFDEP}.cpp"
     "${MACOSX_APP_ICON_FILE}"
     "${MMEX_RC}")
 
-IF(CMAKE_VERSION VERSION_LESS 3.1)
-    INCLUDE(CheckCXXCompilerFlag)
+if(MSVC AND MSVC_VERSION LESS 1800)
+    message(SEND_ERROR "MSVC version too old. Please use VS2013 (12.0) or later for required C++11 features.")
+endif()
+
+if(";${CMAKE_CXX_COMPILE_FEATURES};" MATCHES ";cxx_std_11;")
+    target_compile_features(${MMEX_EXE} PUBLIC cxx_std_11)
+elseif(";${CMAKE_CXX_COMPILE_FEATURES};" MATCHES ";cxx_range_for;"
+        AND ";${CMAKE_CXX_COMPILE_FEATURES};" MATCHES ";cxx_nullptr;"
+        AND ";${CMAKE_CXX_COMPILE_FEATURES};" MATCHES ";cxx_variadic_templates;")
+    target_compile_features(${MMEX_EXE} PUBLIC
+        cxx_range_for cxx_nullptr cxx_variadic_templates)
+else()
     CHECK_CXX_COMPILER_FLAG("-std=gnu++11" COMPILER_SUPPORTS_GXX11)
     CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
     CHECK_CXX_COMPILER_FLAG("-std=gnu++0x" COMPILER_SUPPORTS_GXX0X)
     CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-    IF(COMPILER_SUPPORTS_GXX11)
-        TARGET_COMPILE_OPTIONS(MMEXLib PUBLIC -std=gnu++11)
-    ELSEIF(COMPILER_SUPPORTS_CXX11)
-        TARGET_COMPILE_OPTIONS(MMEXLib PUBLIC -std=c++11)
-    ELSEIF(COMPILER_SUPPORTS_GXX0X)
-        TARGET_COMPILE_OPTIONS(MMEXLib PUBLIC -std=gnu++0x)
-    ELSEIF(COMPILER_SUPPORTS_CXX0X)
-        TARGET_COMPILE_OPTIONS(MMEXLib PUBLIC -std=c++0x)
-    ELSE()
-        MESSAGE(SEND_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
-    ENDIF()
-ELSEIF(CMAKE_VERSION VERSION_LESS 3.8)
-    TARGET_COMPILE_FEATURES(MMEXLib PUBLIC cxx_range_for)
-ELSE()
-    TARGET_COMPILE_FEATURES(MMEXLib PUBLIC cxx_std_11)
-ENDIF()
+    if(COMPILER_SUPPORTS_GXX11)
+        target_compile_options(${MMEX_EXE} PUBLIC -std=gnu++11)
+    elseif(COMPILER_SUPPORTS_CXX11)
+        target_compile_options(${MMEX_EXE} PUBLIC -std=c++11)
+    elseif(COMPILER_SUPPORTS_GXX0X)
+        target_compile_options(${MMEX_EXE} PUBLIC -std=gnu++0x)
+    elseif(COMPILER_SUPPORTS_CXX0X)
+        target_compile_options(${MMEX_EXE} PUBLIC -std=c++0x)
+    else()
+        message(SEND_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
+    endif()
+endif()
 
-TARGET_INCLUDE_DIRECTORIES(MMEXLib PUBLIC .)
-TARGET_LINK_LIBRARIES(${MMEX_EXE} MMEXLib)
-TARGET_LINK_LIBRARIES(MMEXLib
-    PUBLIC
-        wxSQLite3
-        cajun
-        HTML-template
-    PRIVATE
-        LuaGlue
-        Lua
-        csv_parser
-        Mongoose)
+target_include_directories(${MMEX_EXE} PUBLIC . model db)
+target_link_libraries(${MMEX_EXE} PUBLIC
+    wxSQLite3
+    RapidJSON
+    HTML-template
+    CURL::libcurl
+    LuaGlue
+    Lua)
 
-IF(MSVC)
+if(MSVC)
     # Based on this http://stackoverflow.com/a/8294669
     # added solution to compile problems due to
     # conflict between winsock and winsock2
-    # Partialy reinvented fix from commit
+    # Partially reinvented fix from commit
     # commit 06accae1273e66ced469672151522e45eee685a9
-    TARGET_COMPILE_DEFINITIONS(MMEXLib PRIVATE WIN32_LEAN_AND_MEAN)
-ENDIF()
+    target_compile_definitions(${MMEX_EXE} PRIVATE WIN32_LEAN_AND_MEAN)
+endif()
 
-INSTALL(TARGETS ${MMEX_EXE}
+install(TARGETS ${MMEX_EXE}
     RUNTIME DESTINATION ${MMEX_BIN_DIR}
     BUNDLE  DESTINATION .)

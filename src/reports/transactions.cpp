@@ -21,17 +21,22 @@
 #include "transactions.h"
 #include "attachmentdialog.h"
 #include "constants.h"
-#include "htmlbuilder.h"
+#include "reports/htmlbuilder.h"
 #include "util.h"
-#include "model/allmodel.h"
+#include "filtertransdialog.h"
+#include "Model_Account.h"
+#include "Model_Category.h"
+#include "Model_CurrencyHistory.h"
+#include "Model_Attachment.h"
 #include <algorithm>
 #include <vector>
 
-mmReportTransactions::mmReportTransactions(int refAccountID, mmFilterTransactionsDialog* transDialog)
+mmReportTransactions::mmReportTransactions(int refAccountID
+    , mmFilterTransactionsDialog* transDialog)
     : mmPrintableBase("mmReportTransactions")
+    , trans_()
     , m_refAccountID(refAccountID)
     , m_transDialog(transDialog)
-    , trans_()
 {
     Run(m_transDialog);
 }
@@ -48,9 +53,10 @@ wxString mmReportTransactions::getHTMLText()
     mmHTMLBuilder hb;
     hb.init();
     hb.addDivContainer();
+
     const auto account = Model_Account::instance().get(m_transDialog->getAccountID());
-    //wxASSERT(account);
-    const wxString transHeading = account
+    bool monoAcc = m_transDialog->getAccountCheckBox() && account;
+    const wxString transHeading = monoAcc
         ? wxString::Format(_("Transaction List for Account: %s"), account->ACCOUNTNAME)
         : _("Transaction List ");
 
@@ -64,6 +70,7 @@ wxString mmReportTransactions::getHTMLText()
     hb.startThead();
     // Display the data Headings
     hb.startTableRow();
+    hb.addTableHeaderCell(_("ID"));
     hb.addTableHeaderCell(_("Date"));
     hb.addTableHeaderCell(_("Account"));
     hb.addTableHeaderCell(_("Payee"));
@@ -78,8 +85,8 @@ wxString mmReportTransactions::getHTMLText()
 
     hb.startTbody();
 
-    std::map<int, double> total;
-    bool monoAcc = m_transDialog->getAccountCheckBox() && account;
+    std::map<int, double> total; //Store transaction amount with original currency
+    std::map<int, double> total_in_base_curr; //Store transactions amount daily converted to base currency
 
     const Model_Currency::Data* currency = account
         ? Model_Account::currency(account)
@@ -91,6 +98,8 @@ wxString mmReportTransactions::getHTMLText()
     for (auto& transaction : trans_)
     {
         hb.startTableRow();
+        hb.addTableCellLink(wxString::Format("trx:%d", transaction.TRANSID)
+            , wxString::Format("%i", transaction.TRANSID));
         hb.addTableCellDate(transaction.TRANSDATE);
         hb.addTableCellLink(wxString::Format("trxid:%d", transaction.TRANSID)
             , transaction.ACCOUNTNAME);
@@ -118,26 +127,25 @@ wxString mmReportTransactions::getHTMLText()
         //Notes
         hb.addTableCell(AttachmentsLink + transaction.NOTES);
 
-        // Get the exchange rate for the account
-        if (monoAcc)
+        const Model_Account::Data* acc = account;
+        const Model_Currency::Data* curr = currency;
+        if (!monoAcc)
         {
-            double amount = Model_Checking::balance(transaction, account->ACCOUNTID);
-            hb.addCurrencyCell(amount, currency);
-            total[currency->CURRENCYID] += amount;
+            acc = Model_Account::instance().get(transaction.ACCOUNTID);
+            curr = Model_Account::currency(acc);
+        }
+        if (acc)
+        {
+            const double amount = Model_Checking::balance(transaction, acc->ACCOUNTID);
+            const double convRate = Model_CurrencyHistory::getDayRate(curr->CURRENCYID, transaction.TRANSDATE);
+            hb.addCurrencyCell(amount, curr);
+            total[curr->CURRENCYID] += amount;
+            total_in_base_curr[curr->CURRENCYID] += amount * convRate;
         }
         else
         {
-            const auto acc = Model_Account::instance().get(transaction.ACCOUNTID);
-            if (acc)
-            {
-                const Model_Currency::Data* curr = Model_Account::currency(acc);
-                double amount = Model_Checking::balance(transaction
-                    , transaction.ACCOUNTID);
-                hb.addCurrencyCell(amount, curr);
-                total[curr->CURRENCYID] += amount;
-            }
-            else
-                hb.addTableCell("");
+            wxFAIL_MSG("account for transaction not found");
+            hb.addEmptyTableCell();
         }
         hb.endTableRow();
     }
@@ -150,16 +158,15 @@ wxString mmReportTransactions::getHTMLText()
     {
         const auto curr = Model_Currency::instance().get(curr_total.first);
         const wxString totalStr = Model_Currency::toCurrency(curr_total.second, curr);
-        grand_total += curr_total.second * curr->BASECONVRATE;
+        grand_total += total_in_base_curr[curr_total.first];
         const std::vector<wxString> v{ totalStr };
-        if (total.size() > 1 
+        if (total.size() > 1
             || (curr->CURRENCY_SYMBOL != Model_Currency::GetBaseCurrency()->CURRENCY_SYMBOL))
-            hb.addTotalRow(curr->CURRENCY_SYMBOL, 9, v);
+            hb.addTotalRow(curr->CURRENCY_SYMBOL, 10, v);
     }
-    const wxString totalStr = Model_Currency::toCurrency(grand_total
-        , Model_Currency::GetBaseCurrency());
+    const wxString totalStr = Model_Currency::toCurrency(grand_total, Model_Currency::GetBaseCurrency());
     const std::vector<wxString> v{ totalStr };
-    hb.addTotalRow(_("Grand Total:"), 9, v);
+    hb.addTotalRow(_("Grand Total:"), 10, v);
 
     hb.endTfoot();
     hb.endTable();
@@ -174,30 +181,42 @@ wxString mmReportTransactions::getHTMLText()
 void mmReportTransactions::Run(mmFilterTransactionsDialog* dlg)
 {
     const auto splits = Model_Splittransaction::instance().get_all();
+    auto categ = m_transDialog->getCategId();
+    auto subcateg = m_transDialog->getSubCategId();
+    bool similar = !m_transDialog->getSimilarStatus();
+    bool category = dlg->getCategoryCheckBox();
     for (const auto& tran : Model_Checking::instance().all()) //TODO: find should be faster
     {
         Model_Checking::Full_Data full_tran(m_refAccountID, tran, splits);
         if (!dlg->checkAll(full_tran, m_refAccountID)) continue;
         full_tran.PAYEENAME = full_tran.real_payee_name(m_refAccountID);
-        if (full_tran.has_split()) 
+        full_tran.TRANSAMOUNT = tran.TRANSAMOUNT;
+
+        if (category && full_tran.has_split())
         {
+            const Model_Account::Data* acc = Model_Account::instance().get(tran.ACCOUNTID);
+            const Model_Currency::Data* currency = Model_Currency::instance().get(acc->CURRENCYID);
+
             full_tran.CATEGNAME.clear();
-            full_tran.TRANSAMOUNT = 0;
+            double total_amount = 0;
             for (const auto& split : full_tran.m_splits)
             {
+                const wxString amt = Model_Currency::toCurrency(split.SPLITTRANSAMOUNT, currency);
                 const wxString split_info = wxString::Format("%s = %s | "
                     , Model_Category::full_name(split.CATEGID, split.SUBCATEGID)
-                    , wxString::Format("%.2f", split.SPLITTRANSAMOUNT));
-                full_tran.CATEGNAME.Append(split_info);
-                if (split.CATEGID != m_transDialog->getCategId() ) continue;
-                if (split.SUBCATEGID != m_transDialog->getSubCategId() 
-                    && !m_transDialog->getSimilarStatus()) continue;
+                    , amt);
 
-                full_tran.TRANSAMOUNT += split.SPLITTRANSAMOUNT;
+                full_tran.CATEGNAME.Append(split_info);
+
+                if (split.CATEGID != categ) continue;
+                if (similar && split.SUBCATEGID != subcateg) continue;
+
+                total_amount += split.SPLITTRANSAMOUNT;
             }
             full_tran.CATEGNAME.RemoveLast(2);
+            full_tran.TRANSAMOUNT = total_amount;
         }
-        full_tran.TRANSAMOUNT = tran.TRANSAMOUNT;
+
         trans_.push_back(full_tran);
     }
     std::stable_sort(trans_.begin(), trans_.end(), SorterByTRANSDATE());

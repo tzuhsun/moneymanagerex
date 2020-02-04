@@ -65,12 +65,13 @@ void OptionSettingsAttachment::Create()
 
     wxStaticText* attachmentStaticText = new wxStaticText(this, wxID_STATIC, attachmentStaticText_desc);
     attachmentStaticBoxSizer->Add(attachmentStaticText, g_flagsV);
-    attachmentStaticText->SetToolTip(_("Every OS type (Win,Mac,Unix) has its attachment folder"));
+    attachmentStaticText->SetToolTip(_("Every OS type (Win, Mac, Unix) has its attachment folder"));
 
     wxBoxSizer* attachDefinedSizer = new wxBoxSizer(wxHORIZONTAL);
     attachmentStaticBoxSizer->Add(attachDefinedSizer);
 
-    const wxString attachmentFolder = Model_Infotable::instance().GetStringInfo("ATTACHMENTSFOLDER:" + mmPlatformType(), "");
+    const wxString attachmentFolder = Model_Infotable::instance().GetStringInfo(
+        wxString::Format("ATTACHMENTSFOLDER:%s", mmPlatformType()), "");
     m_old_path = attachmentFolder;
 
     wxTextCtrl* textAttachment = new wxTextCtrl(this
@@ -99,10 +100,10 @@ void OptionSettingsAttachment::Create()
     wxStaticBoxSizer* attachmentStaticBoxSizerLegend = new wxStaticBoxSizer(attachmentStaticBoxLegend, wxVERTICAL);
     attachmentStaticBoxSizer->Add(attachmentStaticBoxSizerLegend, wxSizerFlags(g_flagsExpand).Proportion(0));
 
-    wxString legend = wxString::Format(_("%s -> User document directory"), ATTACHMENTS_FOLDER_DOCUMENTS);
-    legend += "\n" + wxString::Format(_("%s -> User profile folder"), ATTACHMENTS_FOLDER_USERPROFILE);
-    legend += "\n" + wxString::Format(_("%s -> Folder of.MMB database file"), ATTACHMENTS_FOLDER_DATABASE);
-    legend += "\n" + wxString::Format(_("%s -> MMEX Application data folder"), ATTACHMENTS_FOLDER_APPDATA);
+    wxString legend = ATTACHMENTS_FOLDER_DOCUMENTS + " -> " + _("User documents directory");
+    legend += "\n" + ATTACHMENTS_FOLDER_USERPROFILE + " -> " + _("User profile folder");
+    legend += "\n" + ATTACHMENTS_FOLDER_DATABASE + " -> " + _("Folder of .mmb database file");
+    legend += "\n" + ATTACHMENTS_FOLDER_APPDATA + " -> " + _("MMEX Application data folder");
     wxStaticText* legendStaticText = new wxStaticText(this, wxID_STATIC, legend);
     attachmentStaticBoxSizerLegend->Add(legendStaticText);
     //End legend
@@ -121,7 +122,7 @@ void OptionSettingsAttachment::Create()
     if (mmPlatformType() != "Win")
     {
         wxStaticText* attachmentFolderWinText = new wxStaticText(this
-            , wxID_STATIC, _("Windows folder -> ") + attachmentFolderWin.Left(50));
+            , wxID_STATIC, _("Windows folder") + " -> " + attachmentFolderWin.Left(50));
         attachmentFolderWinText->SetToolTip(attachmentFolderWin);
         attachmentStaticBoxSizerInfo->Add(attachmentFolderWinText);
     }
@@ -129,7 +130,7 @@ void OptionSettingsAttachment::Create()
     if (mmPlatformType() != "Mac")
     {
         wxStaticText* attachmentFolderMacText = new wxStaticText(this
-            , wxID_STATIC, _("Mac folder -> ") + attachmentFolderMac.Left(50));
+            , wxID_STATIC, _("Mac folder") + " -> " + attachmentFolderMac.Left(50));
         attachmentFolderMacText->SetToolTip(attachmentFolderMac);
         attachmentStaticBoxSizerInfo->Add(attachmentFolderMacText);
     }
@@ -137,7 +138,7 @@ void OptionSettingsAttachment::Create()
     if (mmPlatformType() != "Uni")
     {
         wxStaticText* attachmentFolderUnixText = new wxStaticText(this
-            , wxID_STATIC, _("Unix folder -> ") + attachmentFolderUnix.Left(50));
+            , wxID_STATIC, _("Unix folder") + " -> " + attachmentFolderUnix.Left(50));
         attachmentFolderUnixText->SetToolTip(attachmentFolderUnix);
         attachmentStaticBoxSizerInfo->Add(attachmentFolderUnixText);
     }
@@ -146,7 +147,7 @@ void OptionSettingsAttachment::Create()
     const wxString LastDBPath = Model_Setting::instance().getLastDbPath();
     const wxFileName fn(LastDBPath);
     const wxString LastDBFileName = fn.FileName(LastDBPath).GetName();
-    const wxString subFolder = wxString::Format("MMEX_%s_Attachments", fn.FileName(LastDBPath).GetName());
+    const wxString subFolder = wxString::Format("MMEX_%s_Attachments", LastDBFileName);
     const wxString cbAttachmentsSubfolder_desc = _("Create and use Attachments subfolder");
 
     m_attachments_subfolder = new wxCheckBox(this, ID_DIALOG_OPTIONS_CHECKBOX_ATTACHMENTSSUBFOLDER
@@ -171,10 +172,10 @@ void OptionSettingsAttachment::Create()
     attachmentStaticBoxSizer->Add(m_trash_attachments, g_flagsV);
 }
 
-void OptionSettingsAttachment::OnAttachmentsButton(wxCommandEvent& /*event*/)
+void OptionSettingsAttachment::OnAttachmentsButton(wxCommandEvent& WXUNUSED(event))
 {
     wxMenu * attachmentsMenu = new wxMenu;
-    wxMenuItem* menuItem = new wxMenuItem(attachmentsMenu, wxID_HIGHEST, _("System documents directory"));
+    wxMenuItem* menuItem = new wxMenuItem(attachmentsMenu, wxID_HIGHEST, _("User documents directory"));
     attachmentsMenu->Append(menuItem);
     menuItem = new wxMenuItem(attachmentsMenu, wxID_HIGHEST + 1, _("Application data directory"));
     attachmentsMenu->Append(menuItem);
@@ -191,7 +192,7 @@ void OptionSettingsAttachment::OnAttachmentsButton(wxCommandEvent& /*event*/)
 
 void OptionSettingsAttachment::OnAttachmentsMenu(wxCommandEvent& event)
 {
-    wxTextCtrl* att = (wxTextCtrl*) FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT);
+    wxTextCtrl* att = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT));
     if (!att) return;
     wxString AttachmentsFolder = mmex::getPathAttachment(att->GetValue());
 
@@ -222,13 +223,13 @@ void OptionSettingsAttachment::OnAttachmentsMenu(wxCommandEvent& event)
     OnAttachmentsPathChanged(event);
 }
 
-void OptionSettingsAttachment::OnAttachmentsPathChanged(wxCommandEvent& event)
+void OptionSettingsAttachment::OnAttachmentsPathChanged(wxCommandEvent& WXUNUSED(event))
 {
-    wxTextCtrl* att = (wxTextCtrl*) FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT);
+    wxTextCtrl* att = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT));
     if (!att) return;
     wxString AttachmentsFolder = mmex::getPathAttachment(att->GetValue());
 
-    wxStaticText* text = (wxStaticText*) FindWindow(ID_DIALOG_OPTIONS_STATICTEXT_ATTACHMENTSTEXT);
+    wxStaticText* text = static_cast<wxStaticText*>(FindWindow(ID_DIALOG_OPTIONS_STATICTEXT_ATTACHMENTSTEXT));
     text->SetLabelText(_("Real path:") + "\n" + AttachmentsFolder);
 }
 
@@ -240,7 +241,7 @@ void OptionSettingsAttachment::OnAttachmentsSubfolderChanged(wxCommandEvent& eve
 
 void OptionSettingsAttachment::SaveSettings()
 {
-    wxTextCtrl* attTextCtrl = (wxTextCtrl*) FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT);
+    wxTextCtrl* attTextCtrl = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_ATTACHMENT));
     wxString attachmentFolder = attTextCtrl->GetValue().Trim();
     Model_Infotable::instance().Set("ATTACHMENTSFOLDER:" + mmPlatformType(), attachmentFolder);
     Model_Infotable::instance().Set("ATTACHMENTSSUBFOLDER", m_attachments_subfolder->GetValue());
@@ -255,16 +256,17 @@ void OptionSettingsAttachment::SaveSettings()
         {
             int MoveResponse = wxMessageBox(
                 wxString::Format("%s\n", _("Attachments path has been changed!"))
-                + ("Do you want to move all attachments to the new location?")
+                + _("Do you want to move all attachments to the new location?")
                 , _("Attachments folder migration")
                 , wxYES_NO | wxYES_DEFAULT | wxICON_WARNING);
             if (MoveResponse == wxYES)
             {
                 if (!wxRenameFile(mmex::getPathAttachment(m_old_path), attachmentFolderPath))
                     wxMessageBox(
-                    wxString::Format("%s\n\n", _("Error moving attachments folder: please move it manually!")) +
-                    wxString::Format("%s: %s\n", _("Origin"), mmex::getPathAttachment(m_old_path)) +
-                    wxString::Format("%s: %s", _("Destination"), attachmentFolderPath)
+                        wxString::Format("%s\n\n%s: %s\n%s: %s",
+                            _("Error moving attachments folder: please move it manually!"),
+                            _("Origin"), mmex::getPathAttachment(m_old_path),
+                            _("Destination"), attachmentFolderPath)
                     , _("Attachments folder migration")
                     , wxICON_ERROR);
             }

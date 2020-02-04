@@ -22,9 +22,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "constants.h"
 #include "mmSimpleDialogs.h"
 #include "util.h"
+#include "paths.h"
 
-#include "model/Model_Account.h"
-#include "model/Model_Category.h"
+#include "Model_Account.h"
+#include "Model_Category.h"
 
 #include <wx/statline.h>
 
@@ -60,9 +61,9 @@ SplitTransactionDialog::SplitTransactionDialog( )
     , const wxString& name
     )
     : m_splits(split)
-    , totalAmount_(totalAmount)
-    , accountID_(accountID)
     , transType_(transType)
+    , accountID_(accountID)
+    , totalAmount_(totalAmount)
     , items_changed_(false)
 {
     for (const auto &item : m_splits)
@@ -89,11 +90,12 @@ bool SplitTransactionDialog::Create(wxWindow* parent
     wxDialog::Create( parent, id, caption, pos, size, style, name);
 
     CreateControls();
+    DataToControls();
+
     GetSizer()->Fit(this);
     GetSizer()->SetSizeHints(this);
     Centre();
-
-    DataToControls();
+    SetIcon(mmex::getProgramIcon());
 
     return TRUE;
 }
@@ -110,7 +112,7 @@ void SplitTransactionDialog::DataToControls()
         wxVector<wxVariant> data;
         data.push_back(wxVariant(Model_Category::full_name(entry.CATEGID, entry.SUBCATEGID)));
         data.push_back(wxVariant(Model_Currency::toString(entry.SPLITTRANSAMOUNT, currency)));
-        lcSplit_->AppendItem(data, (wxUIntPtr)lcSplit_->GetItemCount());
+        lcSplit_->AppendItem(data, static_cast<wxUIntPtr>(lcSplit_->GetItemCount()));
     }
     if (lcSplit_->GetItemCount() > selectedIndex_ && selectedIndex_ >= 0)
         lcSplit_->SelectRow(selectedIndex_);
@@ -152,8 +154,8 @@ void SplitTransactionDialog::CreateControls()
     buttons_panel->SetSizer(buttons_sizer);
 
     wxSizerFlags flagsH = wxSizerFlags(g_flagsH).Border(wxLEFT | wxRIGHT | wxBOTTOM, 5).Center();
-	wxSizerFlags flagsV = wxSizerFlags(g_flagsV).Border(wxLEFT | wxRIGHT | wxBOTTOM, 5).Center();
-	wxBoxSizer* mainButtonSizer = new wxBoxSizer(wxVERTICAL);
+    wxSizerFlags flagsV = wxSizerFlags(g_flagsV).Border(wxLEFT | wxRIGHT | wxBOTTOM, 5).Center();
+    wxBoxSizer* mainButtonSizer = new wxBoxSizer(wxVERTICAL);
     wxBoxSizer* topRowButtonSizer = new wxBoxSizer(wxHORIZONTAL);
     wxBoxSizer* bottomRowButtonSizer = new wxBoxSizer(wxHORIZONTAL);
     mainButtonSizer->Add(topRowButtonSizer, flagsV);
@@ -175,7 +177,7 @@ void SplitTransactionDialog::CreateControls()
     bottomRowButtonSizer->Add(itemButtonCancel, g_flagsH);
 }
 
-void SplitTransactionDialog::OnButtonAddClick( wxCommandEvent& /*event*/ )
+void SplitTransactionDialog::OnButtonAddClick( wxCommandEvent& WXUNUSED(event) )
 {
     double amount = totalAmount_ - Model_Splittransaction::get_total(m_local_splits);
     if (amount < 0.0) amount = 0.0;
@@ -185,17 +187,18 @@ void SplitTransactionDialog::OnButtonAddClick( wxCommandEvent& /*event*/ )
     {
         this->m_local_splits.push_back(sdd.getResult());
         items_changed_ = true;
+        selectedIndex_ = lcSplit_->GetItemCount();
     }
     DataToControls();
 }
 
-void SplitTransactionDialog::OnButtonEditClick( wxCommandEvent& /*event*/ )
+void SplitTransactionDialog::OnButtonEditClick( wxCommandEvent& WXUNUSED(event) )
 {
     EditEntry(selectedIndex_);
     DataToControls();
 }
 
-void SplitTransactionDialog::OnOk( wxCommandEvent& /*event*/ )
+void SplitTransactionDialog::OnOk( wxCommandEvent& WXUNUSED(event) )
 {
     //Check total amount - should be positive
     double total = 0;
@@ -207,15 +210,15 @@ void SplitTransactionDialog::OnOk( wxCommandEvent& /*event*/ )
     }
     else
     {
-        // finally 
+        // finally
         m_splits.swap(m_local_splits);
         EndModal(wxID_OK);
     }
 }
 
-void SplitTransactionDialog::OnButtonRemoveClick( wxCommandEvent& event )
+void SplitTransactionDialog::OnButtonRemoveClick(wxCommandEvent& WXUNUSED(event))
 {
-    if (selectedIndex_ < 0 || selectedIndex_ >= (int)this->m_local_splits.size())
+    if (selectedIndex_ < 0 || static_cast<size_t>(selectedIndex_) >= this->m_local_splits.size())
         return;
     this->m_local_splits.erase(this->m_local_splits.begin() + selectedIndex_);
     selectedIndex_ = -1;
@@ -235,7 +238,7 @@ void SplitTransactionDialog::UpdateSplitTotal()
 
 void SplitTransactionDialog::EditEntry(int index)
 {
-    if (index < 0 || index >= (int)this->m_local_splits.size()) return;
+    if (index < 0 || static_cast<size_t>(index) >= this->m_local_splits.size()) return;
     SplitDetailDialog sdd(this, m_local_splits[index], transType_, accountID_);
     if (sdd.ShowModal() == wxID_OK)
     {
@@ -253,7 +256,7 @@ void SplitTransactionDialog::OnListItemSelected(wxDataViewEvent& event)
     SetDisplayEditDeleteButtons();
 }
 
-void SplitTransactionDialog::OnListDblClick(wxDataViewEvent& event)
+void SplitTransactionDialog::OnListDblClick(wxDataViewEvent& WXUNUSED(event))
 {
     if (itemButtonEdit_->IsShown()) EditEntry(selectedIndex_);
 }
@@ -268,7 +271,7 @@ void SplitTransactionDialog::SetDisplaySplitCategories()
 
 void SplitTransactionDialog::SetDisplayEditDeleteButtons()
 {
-    bool active = selectedIndex_ >= 0 && selectedIndex_ < (int)this->m_local_splits.size();
+    bool active = selectedIndex_ >= 0 && static_cast<size_t>(selectedIndex_) < this->m_local_splits.size();
     itemButtonEdit_->Enable(active);
     itemButtonDelete_->Enable(active);
 }

@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "optionsettingsmisc.h"
 #include "option.h"
 
-#include "model/Model_Checking.h"
+#include "Model_Checking.h"
 
 #include <wx/spinctrl.h>
 
@@ -69,8 +69,8 @@ void OptionSettingsMisc::Create()
     share_precision_sizer->Add(new wxStaticText(this, wxID_STATIC, _("Share Precision")), wxSizerFlags(g_flagsExpand).Proportion(0));
 
     m_share_precision = new wxSpinCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize
-        , wxSP_ARROW_KEYS, 2, 10, Option::instance().SharePrecision());
-    m_share_precision->SetValue(Option::instance().SharePrecision());
+        , wxSP_ARROW_KEYS, 2, 10, Option::instance().getSharePrecision());
+    m_share_precision->SetValue(Option::instance().getSharePrecision());
     m_share_precision->SetToolTip(_("Set the precision for Share prices"));
 
     share_precision_sizer->Add(m_share_precision, wxSizerFlags(g_flagsExpand).Proportion(0));
@@ -79,7 +79,7 @@ void OptionSettingsMisc::Create()
     // New transaction dialog settings
     wxStaticBox* transSettingsStaticBox = new wxStaticBox(this, wxID_STATIC, _("New Transaction Dialog Settings"));
     SetBoldFont(transSettingsStaticBox);
-    
+
     wxStaticBoxSizer* transSettingsStaticBoxSizer = new wxStaticBoxSizer(transSettingsStaticBox, wxVERTICAL);
     othersPanelSizer->Add(transSettingsStaticBoxSizer, wxSizerFlags(g_flagsExpand).Proportion(0));
 
@@ -89,31 +89,31 @@ void OptionSettingsMisc::Create()
 
     wxChoice* defaultDateChoice = new wxChoice(this
         , ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_DATE
-        , wxDefaultPosition, wxSize(140, -1), default_values);
-    defaultDateChoice->SetSelection(Option::instance().TransDateDefault());
+        , wxDefaultPosition, wxDefaultSize, default_values);
+    defaultDateChoice->SetSelection(Option::instance().getTransDateDefault());
 
     wxChoice* defaultPayeeChoice = new wxChoice(this
         , ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_PAYEE
-        , wxDefaultPosition, wxSize(140, -1), default_values);
-    defaultPayeeChoice->SetSelection(Option::instance().TransPayeeSelection());
+        , wxDefaultPosition, wxDefaultSize, default_values);
+    defaultPayeeChoice->SetSelection(Option::instance().getTransPayeeSelection());
 
-    default_values[1] = (_("Last used for payee"));
+    default_values.clear();
+    default_values.Add(_("None"));
+    default_values.Add(_("Last used for payee"));
     default_values.Add(_("Unused"));
     wxChoice* defaultCategoryChoice = new wxChoice(this
         , ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_CATEGORY
-        , wxDefaultPosition, defaultPayeeChoice->GetSize(), default_values);
-    defaultCategoryChoice->SetSelection(Option::instance().TransCategorySelection());
+        , wxDefaultPosition, wxDefaultSize, default_values);
+    defaultCategoryChoice->SetSelection(Option::instance().getTransCategorySelection());
 
     wxChoice* default_status = new wxChoice(this
         , ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_STATUS
-        , wxDefaultPosition, defaultDateChoice->GetSize());
+        , wxDefaultPosition, wxDefaultSize, Model_Checking::all_status());
 
-    for (const auto& i : Model_Checking::all_status())
-        default_status->Append(wxGetTranslation(i), new wxStringClientData(i));
-
-    default_status->SetSelection(Option::instance().TransStatusReconciled());
+    default_status->SetSelection(Option::instance().getTransStatusReconciled());
 
     wxFlexGridSizer* newTransflexGridSizer = new wxFlexGridSizer(0, 2, 0, 0);
+    newTransflexGridSizer->AddGrowableCol(1);
     transSettingsStaticBoxSizer->Add(newTransflexGridSizer);
     newTransflexGridSizer->Add(new wxStaticText(this, wxID_STATIC, _("Default Date:")), g_flagsH);
     newTransflexGridSizer->Add(defaultDateChoice, g_flagsH);
@@ -185,16 +185,16 @@ void OptionSettingsMisc::Create()
     OptionSettingsMisc::OnBackupChanged(evt);
 }
 
-void OptionSettingsMisc::OnBackupChanged(wxCommandEvent& event)
+void OptionSettingsMisc::OnBackupChanged(wxCommandEvent& WXUNUSED(event))
 {
-    wxCheckBox* ChkBackup = (wxCheckBox*)FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP);
-    wxCheckBox* ChkBackupUpdate = (wxCheckBox*)FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP_UPDATE);
+    wxCheckBox* ChkBackup = static_cast<wxCheckBox*>(FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP));
+    wxCheckBox* ChkBackupUpdate = static_cast<wxCheckBox*>(FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP_UPDATE));
     m_max_files->Enable(ChkBackup->GetValue() || ChkBackupUpdate->GetValue());
 }
 
 void OptionSettingsMisc::SaveStocksUrl()
 {
-    wxTextCtrl* url = (wxTextCtrl*)FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_STOCKURL);
+    wxTextCtrl* url = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_STOCKURL));
     wxString stockURL = url->GetValue();
     if (!stockURL.IsEmpty())
     {
@@ -210,30 +210,30 @@ void OptionSettingsMisc::SaveStocksUrl()
 
 void OptionSettingsMisc::SaveSettings()
 {
-    wxChoice* itemChoice = (wxChoice*)FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_PAYEE);
-    Option::instance().TransPayeeSelection(itemChoice->GetSelection());
+    wxChoice* itemChoice = static_cast<wxChoice*>(FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_PAYEE));
+    Option::instance().setTransPayeeSelection(itemChoice->GetSelection());
 
-    itemChoice = (wxChoice*)FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_CATEGORY);
-    Option::instance().TransCategorySelection(itemChoice->GetSelection());
+    itemChoice = static_cast<wxChoice*>(FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_CATEGORY));
+    Option::instance().setTransCategorySelection(itemChoice->GetSelection());
 
-    itemChoice = (wxChoice*)FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_STATUS);
-    Option::instance().TransStatusReconciled(itemChoice->GetSelection());
+    itemChoice = static_cast<wxChoice*>(FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_STATUS));
+    Option::instance().setTransStatusReconciled(itemChoice->GetSelection());
 
-    itemChoice = (wxChoice*)FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_DATE);
-    Option::instance().TransDateDefault(itemChoice->GetSelection());
+    itemChoice = static_cast<wxChoice*>(FindWindow(ID_DIALOG_OPTIONS_DEFAULT_TRANSACTION_DATE));
+    Option::instance().setTransDateDefault(itemChoice->GetSelection());
 
     SaveStocksUrl();
-    Option::instance().SharePrecision(m_share_precision->GetValue());
+    Option::instance().setSharePrecision(m_share_precision->GetValue());
 
-    wxCheckBox* itemCheckBox = (wxCheckBox*)FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP);
+    wxCheckBox* itemCheckBox = static_cast<wxCheckBox*>(FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP));
     Model_Setting::instance().Set("BACKUPDB", itemCheckBox->GetValue());
 
-    wxCheckBox* itemCheckBoxUpdate = (wxCheckBox*)FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP_UPDATE);
+    wxCheckBox* itemCheckBoxUpdate = static_cast<wxCheckBox*>(FindWindow(ID_DIALOG_OPTIONS_CHK_BACKUP_UPDATE));
     Model_Setting::instance().Set("BACKUPDB_UPDATE", itemCheckBoxUpdate->GetValue());
 
     Model_Setting::instance().Set("MAX_BACKUP_FILES", m_max_files->GetValue());
 
-    wxTextCtrl* st = (wxTextCtrl*)FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_DELIMITER4);
+    wxTextCtrl* st = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_DELIMITER4));
     const wxString& delim = st->GetValue();
     if (!delim.IsEmpty()) Model_Infotable::instance().Set("DELIMITER", delim);
 }

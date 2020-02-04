@@ -1,7 +1,8 @@
 # Compiled Object files
 *.slo
 *.lo
-*.o*
+*.o
+*.out
 *.obj
 
 # Compiled Dynamic libraries
@@ -18,16 +19,20 @@
 # default build dir
 /build/
 
+#snapcraft build dirs
+/snap/
+/parts/
+
 # JetBrains CLion IDE
 .idea
 
 # Visual Studio tools
-/.vs
-/.vscode
+.vs
+.vscode
 
 # backups & tmp files
 *~
 *.bak
 *.swp
 *.d
-
+.DS_Store

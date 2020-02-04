@@ -19,13 +19,13 @@
 #ifndef MM_EX_BILLSDEPOSITSPANEL_H_
 #define MM_EX_BILLSDEPOSITSPANEL_H_
 
-#include "filtertransdialog.h"
 #include "mmpanelbase.h"
-#include "model/Model_Billsdeposits.h"
-#include <vector>
-
+#include "Model_Billsdeposits.h"
 class wxListEvent;
 class mmBillsDepositsPanel;
+class mmFilterTransactionsDialog;
+class wxStaticText;
+class wxStaticBitmap;
 
 /* Custom ListCtrl class that implements virtual LC style */
 class billsDepositsListCtrl: public mmListCtrl
@@ -77,7 +77,7 @@ public:
         , const wxPoint& pos = wxDefaultPosition
         , const wxSize& size = wxDefaultSize
         , long style = wxTAB_TRAVERSAL | wxNO_BORDER
-        , const wxString& name = "mmBillsDepositsPanel" 
+        , const wxString& name = "mmBillsDepositsPanel"
     );
     ~mmBillsDepositsPanel();
 
@@ -93,10 +93,11 @@ public:
     int getColumnsNumber() { return COL_MAX; }
     int col_sort() { return COL_PAYMENT_DATE; }
 
-    static wxString GetFrequency(const Model_Billsdeposits::Data* item);
-    static wxString GetRemainingDays(const Model_Billsdeposits::Data* item);
+    const wxString GetFrequency(const Model_Billsdeposits::Data* item) const;
+    const wxString GetRemainingDays(const Model_Billsdeposits::Data* item) const;
 
     wxString BuildPage() const;
+    wxDate getToday() const;
 
 private:
     void CreateControls();
@@ -114,17 +115,22 @@ private:
     void OnEnterBDTransaction(wxCommandEvent& event);
     void OnSkipBDTransaction(wxCommandEvent& event);
     void OnOpenAttachment(wxCommandEvent& event);
-
-    void OnViewPopupSelected(wxCommandEvent& event);
+    void OnFilterTransactions(wxCommandEvent& event);
 
     void sortTable();
+
+    bool transFilterActive_;
     wxString tips();
+    wxArrayString tips_;
+    wxDate m_today;
 
 private:
     wxImageList* m_imageList;
     billsDepositsListCtrl* listCtrlAccount_;
     wxStaticText* m_infoText;
     wxStaticText* m_infoTextMini;
+    mmFilterTransactionsDialog* transFilterDlg_;
+    wxButton* m_bitmapTransFilter;
 
     enum EColumn
     {
@@ -146,13 +152,9 @@ private:
         COL_NOTES,
         COL_MAX, // number of columns
     };
-
-    bool transFilterActive_;
-    void OnFilterTransactions(wxMouseEvent& event);
-    mmFilterTransactionsDialog* transFilterDlg_;
-    wxStaticBitmap* bitmapTransFilter_;
-
-    wxArrayString tips_;
 };
+
+inline wxDate mmBillsDepositsPanel::getToday() const { return m_today; }
+
 #endif
 

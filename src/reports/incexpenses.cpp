@@ -1,5 +1,5 @@
 /*******************************************************
-Copyright (C) 2006-2012
+Copyright (C) 2006-2012 Madhan Kanagavel
 Copyright (C) 2017 James Higley
 
 This program is free software; you can redistribute it and/or modify
@@ -19,12 +19,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "incexpenses.h"
 
-#include "htmlbuilder.h"
+#include "reports/htmlbuilder.h"
 #include "util.h"
+#include "reports/mmDateRange.h"
 
-#include "model/Model_Account.h"
-#include "model/Model_Checking.h"
-#include "model/Model_CurrencyHistory.h"
+#include "Model_Account.h"
+#include "Model_Checking.h"
+#include "Model_CurrencyHistory.h"
 
 
 mmReportIncomeExpenses::mmReportIncomeExpenses()
@@ -43,35 +44,14 @@ int mmReportIncomeExpenses::report_parameters()
 
 wxString mmReportIncomeExpenses::getHTMLText()
 {
-    wxString headerMsg = _("Accounts: ");
-    if (accountArray_ == nullptr)
-    {
-        headerMsg << _("All Accounts");
-    }
-    else
-    {
-        int arrIdx = 0;
-        if ((int)accountArray_->size() == 0)
-            headerMsg << "?";
 
-        if (!accountArray_->empty())
-        {
-            headerMsg << accountArray_->Item(arrIdx);
-            arrIdx++;
-        }
-        while (arrIdx < (int)accountArray_->size())
-        {
-            headerMsg << ", " << accountArray_->Item(arrIdx);
-            arrIdx++;
-        }
-    }
     mmHTMLBuilder hb;
     hb.init();
     hb.addDivContainer();
-    hb.addHeader(2, this->title());
-    hb.addDateNow();
+    hb.addHeader(2, this->getReportTitle());
     hb.DisplayDateHeading(m_date_range->start_date(), m_date_range->end_date(), m_date_range->is_with_date());
-    hb.addHeader(3, headerMsg);
+    hb.addHeader(3, getAccountNames());
+    hb.addDateNow();
 
     std::pair<double, double> income_expenses_pair;
     for (const auto& transaction : Model_Checking::instance().find(
@@ -83,13 +63,14 @@ wxString mmReportIncomeExpenses::getHTMLText()
         if (Model_Checking::foreignTransactionAsTransfer(transaction))
             continue;
 
-        // We got this far, get the currency conversion rate for this account
         Model_Account::Data *account = Model_Account::instance().get(transaction.ACCOUNTID);
         if (accountArray_)
         {
-            if (wxNOT_FOUND == accountArray_->Index(account->ACCOUNTNAME)) continue;
+            if (!account || wxNOT_FOUND == accountArray_->Index(account->ACCOUNTNAME))
+                continue;
         }
         double convRate = 1;
+        // We got this far, get the currency conversion rate for this account
         if (account) convRate = Model_CurrencyHistory::getDayRate(Model_Account::currency(account)->CURRENCYID,transaction.TRANSDATE);
 
         if (Model_Checking::type(transaction) == Model_Checking::DEPOSIT)
@@ -98,16 +79,20 @@ wxString mmReportIncomeExpenses::getHTMLText()
             income_expenses_pair.second += transaction.TRANSAMOUNT * convRate;
     }
 
-    ValueTrio vt;
-    std::vector<ValueTrio> valueList;
-    vt.amount = income_expenses_pair.first;
-    vt.color = "rgba(151,187,205,0.5)";
-    vt.label = _("Income");
+    BarGraphData vt;
+    std::vector<BarGraphData> valueList;
+    vt.data = { income_expenses_pair.first };
+    vt.fillColor = "rgba(151,187,205,0.5)";
+    vt.title = _("Income");
     valueList.push_back(vt);
-    vt.amount = income_expenses_pair.second;
-    vt.color = "rgba(220,66,66,0.5)";
-    vt.label = _("Expenses");
+    vt.data = { income_expenses_pair.second };
+    vt.fillColor = "rgba(220,66,66,0.5)";
+    vt.title = _("Expenses");
     valueList.push_back(vt);
+
+    wxArrayString labels;
+    const auto label = wxGetTranslation(m_date_range->title());
+    labels.Add(label);
 
     hb.addDivRow();
     hb.addDivCol17_67();
@@ -118,7 +103,7 @@ wxString mmReportIncomeExpenses::getHTMLText()
             hb.startTableCell(" style='vertical-align:middle' width='70%'");
             hb.addDivCol17_67();
             if (!valueList.empty())
-                hb.addBarChart("''", valueList, "BarChart");
+                hb.addBarChart(labels, valueList, "BarChart");
             hb.endDiv();
             hb.endTableCell();
 
@@ -171,28 +156,7 @@ int mmReportIncomeExpensesMonthly::report_parameters()
 
 wxString mmReportIncomeExpensesMonthly::getHTMLText()
 {
-    wxString headerMsg = _("Accounts: ");
-    if (accountArray_ == nullptr)
-    {
-        headerMsg << _("All Accounts");
-    }
-    else
-    {
-        int arrIdx = 0;
-        if ((int)accountArray_->size() == 0)
-            headerMsg << "?";
-
-        if (!accountArray_->empty())
-        {
-            headerMsg << accountArray_->Item(arrIdx);
-            arrIdx++;
-        }
-        while (arrIdx < (int)accountArray_->size())
-        {
-            headerMsg << ", " << accountArray_->Item(arrIdx);
-            arrIdx++;
-        }
-    }
+    wxString headerMsg = getAccountNames();
 
     std::map<int, std::pair<double, double> > incomeExpensesStats;
     //TODO: init all the map values with 0.0
@@ -201,17 +165,18 @@ wxString mmReportIncomeExpensesMonthly::getHTMLText()
         , Model_Checking::TRANSDATE(m_date_range->end_date(), LESS_OR_EQUAL)
         , Model_Checking::STATUS(Model_Checking::VOID_, NOT_EQUAL)))
     {
-        // We got this far, get the currency conversion rate for this account
         Model_Account::Data *account = Model_Account::instance().get(transaction.ACCOUNTID);
         if (accountArray_)
         {
-            if (wxNOT_FOUND == accountArray_->Index(account->ACCOUNTNAME)) continue;
+            if (!account || wxNOT_FOUND == accountArray_->Index(account->ACCOUNTNAME))
+                continue;
         }
         double convRate = 1;
+        // We got this far, get the currency conversion rate for this account
         if (account) convRate = Model_CurrencyHistory::getDayRate(Model_Account::currency(account)->CURRENCYID, transaction.TRANSDATE);
 
         int idx = (Model_Checking::TRANSDATE(transaction).GetYear() * 100
-            + (int) Model_Checking::TRANSDATE(transaction).GetMonth());
+            + Model_Checking::TRANSDATE(transaction).GetMonth());
 
         if (Model_Checking::type(transaction) == Model_Checking::DEPOSIT)
             incomeExpensesStats[idx].first += transaction.TRANSAMOUNT * convRate;
@@ -222,11 +187,12 @@ wxString mmReportIncomeExpensesMonthly::getHTMLText()
     mmHTMLBuilder hb;
     hb.init();
     hb.addDivContainer();
-    hb.addHeader(2, this->title());
-    hb.addDateNow();
+    hb.addHeader(2, this->getReportTitle());
     hb.DisplayDateHeading(m_date_range->start_date(), m_date_range->end_date(), m_date_range->is_with_date());
     hb.addHeader(3, headerMsg);
+    hb.addDateNow();
     hb.addLineBreak();
+
     hb.addDivRow();
     hb.addDivCol17_67();
 
@@ -254,8 +220,8 @@ wxString mmReportIncomeExpensesMonthly::getHTMLText()
             total_income += stats.second.first;
 
             hb.startTableRow();
-            hb.addTableCell(wxString() << (int) (stats.first / 100));
-            hb.addTableCellMonth(stats.first % 100);
+            hb.addTableCell(wxString() << stats.first / 100);
+            hb.addTableCellMonth(static_cast<wxDateTime::Month>(stats.first % 100));
             hb.addMoneyCell(stats.second.first);
             hb.addMoneyCell(stats.second.second);
             hb.addMoneyCell(stats.second.first - stats.second.second);
@@ -274,7 +240,7 @@ wxString mmReportIncomeExpensesMonthly::getHTMLText()
     hb.endTable();
     hb.endDiv();
     hb.endDiv();
-    hb.endDiv(); 
+    hb.endDiv();
     hb.end();
 
     return hb.getHTMLText();

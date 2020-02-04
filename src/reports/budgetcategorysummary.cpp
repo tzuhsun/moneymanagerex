@@ -21,13 +21,13 @@
  Renamed after extensive modifications to original file reportbudgetsetup.cpp
 **************************************************************************/
 #include "budgetcategorysummary.h"
-#include "htmlbuilder.h"
+#include "reports/htmlbuilder.h"
 #include "mmex.h"
 #include "mmframe.h"
-#include "model/Model_Budgetyear.h"
-#include "model/Model_Budget.h"
-#include "model/Model_Category.h"
-#include "model/Model_Subcategory.h"
+#include "Model_Budgetyear.h"
+#include "Model_Budget.h"
+#include "Model_Category.h"
+#include "Model_Subcategory.h"
 #include "reports/mmDateRange.h"
 
 mmReportBudgetCategorySummary::mmReportBudgetCategorySummary()
@@ -43,7 +43,7 @@ int mmReportBudgetCategorySummary::report_parameters()
     return RepParams::BUDGET_DATES | RepParams::CHART;
 }
 
-wxString mmReportBudgetCategorySummary::actualAmountColour(double amount, double actual, double estimated, bool total)
+const wxString mmReportBudgetCategorySummary::actualAmountColour(double amount, double actual, double estimated, bool total) const
 {
     wxString actAmtColStr = "black";
     if (total) {
@@ -63,32 +63,32 @@ wxString mmReportBudgetCategorySummary::actualAmountColour(double amount, double
 
 wxString mmReportBudgetCategorySummary::getHTMLText()
 {
-    unsigned short startDay = 1;
-    long startMonth, startYear;
+    wxDateTime::wxDateTime_t startDay = 1;
+    long tmp;
+    wxDateTime::Month startMonth = wxDateTime::Jan;
+    int startYear;
 
     wxString value = Model_Budgetyear::instance().Get(m_date_selection);
     wxString budget_month, budget_year = value;
 
-    wxRegEx pattern("^([0-9]{4})(|-[0-9]{2})$");
+    wxRegEx pattern("^([0-9]{4})(-([0-9]{2}))?$");
     if (pattern.Matches(value))
     {
         budget_year = pattern.GetMatch(value, 1);
-        budget_month = pattern.GetMatch(value, 2);
-        budget_month.Replace("-", "");
+        budget_month = pattern.GetMatch(value, 3);
     }
 
-    if (!budget_year.ToLong(&startYear)) {
-        startYear = static_cast<long>(wxDateTime::Today().GetYear());
-        budget_year = wxString::Format("%ld", startYear);
+    if (!budget_year.ToLong(&tmp)) {
+        startYear = wxDateTime::Today().GetYear();
+        budget_year = wxString::Format("%d", startYear);
     }
-
-    if (!budget_month.ToLong(&startMonth))
-        startMonth = static_cast<long>(wxDateTime::Jan);
     else
-        startMonth--;
+        startYear = static_cast<int>(tmp); // 0 <= tmp <= 9999
 
-    wxDateTime yearBegin(startDay, (wxDateTime::Month)startMonth
-        , static_cast<int>(startYear));
+    if (budget_month.ToLong(&tmp))
+        startMonth = static_cast<wxDateTime::Month>(--tmp);
+
+    wxDateTime yearBegin(startDay, startMonth, startYear);
     wxDateTime yearEnd = yearBegin;
 
     bool monthlyBudget = (!budget_month.empty());
@@ -97,10 +97,13 @@ wxString mmReportBudgetCategorySummary::getHTMLText()
     else
         yearEnd.Add(wxDateSpan::Year()).Subtract(wxDateSpan::Day());
 
+    // Readjust dates by the Budget Offset Option
+    Option::instance().setBudgetDateOffset(yearBegin);
+    Option::instance().setBudgetDateOffset(yearEnd);
     mmSpecifiedRange date_range(yearBegin, yearEnd);
 
     bool evaluateTransfer = false;
-    if (Option::instance().BudgetIncludeTransfers())
+    if (Option::instance().getBudgetIncludeTransfers())
     {
         evaluateTransfer = true;
     }
@@ -110,26 +113,27 @@ wxString mmReportBudgetCategorySummary::getHTMLText()
     Model_Budget::instance().getBudgetEntry(m_date_selection, budgetPeriod, budgetAmt);
     std::map<int, std::map<int, std::map<int, double> > > categoryStats;
     Model_Category::instance().getCategoryStats(categoryStats
-        , &date_range, Option::instance().IgnoreFutureTransactions()
-        , false, true, (evaluateTransfer ? &budgetAmt : nullptr));
+        , nullptr
+        , &date_range, Option::instance().getIgnoreFutureTransactions()
+        , false, (evaluateTransfer ? &budgetAmt : nullptr));
 
     auto categs = Model_Category::all_categories();
     categs[L"\uF8FF"] = std::make_pair(-1, -1); //last alphabetical charicter
     int categID = -1;
     mmHTMLBuilder hb;
     //---------------------------------
-    const wxString& headingStr = AdjustYearValues(static_cast<int>(startDay)
+    const wxString& headingStr = AdjustYearValues(startDay
         , startMonth, startYear, budget_year);
     hb.init();
     hb.addDivContainer();
-    bool amply = Option::instance().BudgetReportWithSummaries();
-    const wxString& headerStartupMsg = amply 
+    bool amply = Option::instance().getBudgetReportWithSummaries();
+    const wxString& headerStartupMsg = amply
         ? _("Budget Categories for %s") : _("Budget Category Summary for %s");
 
     hb.addHeader(2, wxString::Format(headerStartupMsg
         ,  headingStr + "<br>" + _("( Estimated Vs Actual )")));
-    hb.addDateNow();
     hb.DisplayDateHeading(yearBegin, yearEnd);
+    hb.addDateNow();
 
     double estIncome = 0.0, estExpenses = 0.0, actIncome = 0.0, actExpenses = 0.0;
 
@@ -226,7 +230,7 @@ wxString mmReportBudgetCategorySummary::getHTMLText()
 
             catTotalsAmt = catTotalsEstimated = catTotalsActual = 0.0;
         }
-        
+
         catTotalsAmt += actual;
         catTotalsActual += actual;
         catTotalsEstimated += estimated;
@@ -249,8 +253,8 @@ wxString mmReportBudgetCategorySummary::getHTMLText()
 
     hb.endTable();
 
-    double difIncome = estIncome - actIncome;
-    double difExpense = estExpenses - actExpenses;
+    double difIncome = actIncome - estIncome;
+    double difExpense = actExpenses - estExpenses;
 
     //Summary of Estimated Vs Actual totals
     hb.startTfoot();

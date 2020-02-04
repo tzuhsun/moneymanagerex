@@ -18,10 +18,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "payee.h"
 
-#include "htmlbuilder.h"
-#include "model/Model_Currency.h"
-#include "model/Model_Payee.h"
-#include "model/Model_Account.h"
+#include "reports/htmlbuilder.h"
+#include "option.h"
+#include "reports/mmDateRange.h"
+#include "Model_Currency.h"
+#include "Model_CurrencyHistory.h"
+#include "Model_Payee.h"
+#include "Model_Account.h"
 
 #include <algorithm>
 
@@ -47,10 +50,11 @@ void  mmReportPayeeExpenses::RefreshData()
     valueList_.clear();
     positiveTotal_ = 0.0;
     negativeTotal_ = 0.0;
+    int color_id = 0;
 
     std::map<int, std::pair<double, double> > payeeStats;
     getPayeeStats(payeeStats, const_cast<mmDateRange*>(m_date_range)
-        , Option::instance().IgnoreFutureTransactions());
+        , Option::instance().getIgnoreFutureTransactions());
 
     data_holder line;
 
@@ -65,7 +69,7 @@ void  mmReportPayeeExpenses::RefreshData()
         line.name = payee ? payee->PAYEENAME : "";
         line.incomes = entry.second.first;
         line.expenses = entry.second.second;
-        line.color = hb.getRandomColor((line.incomes + line.expenses) > 0);
+        line.color = hb.getColor(color_id++);
         data_.push_back(line);
     }
 
@@ -79,7 +83,7 @@ void  mmReportPayeeExpenses::RefreshData()
                 return x.name < y.name;
         }
     );
-    
+
 
     for (const auto& entry : data_) {
         ValueTrio vt;
@@ -97,9 +101,9 @@ wxString mmReportPayeeExpenses::getHTMLText()
     mmHTMLBuilder hb;
     hb.init();
     hb.addDivContainer();
-    hb.addHeader(2, title());
-    hb.addDateNow();
+    hb.addHeader(2, getReportTitle());
     hb.DisplayDateHeading(m_date_range->start_date(), m_date_range->end_date(), m_date_range->is_with_date());
+    hb.addDateNow();
 
     hb.addDivRow();
     hb.addDivCol17_67();
@@ -153,21 +157,13 @@ wxString mmReportPayeeExpenses::getHTMLText()
 }
 
 void mmReportPayeeExpenses::getPayeeStats(std::map<int, std::pair<double, double> > &payeeStats
-                                          , mmDateRange* date_range, bool ignoreFuture) const
+                                          , mmDateRange* date_range, bool WXUNUSED(ignoreFuture)) const
 {
-    //Get base currency rates for all accounts
-    std::map<int, double> acc_conv_rates;
-    for (const auto& account: Model_Account::instance().all())
-    {
-        Model_Currency::Data* currency = Model_Account::currency(account);
-        acc_conv_rates[account.ACCOUNTID] = currency->BASECONVRATE;
-    }
-
+// FIXME: do not ignore ignoreFuture param
     const auto &transactions = Model_Checking::instance().find(
         Model_Checking::STATUS(Model_Checking::VOID_, NOT_EQUAL)
-        , Model_Checking::TRANSDATE(m_date_range->start_date(), GREATER_OR_EQUAL)
-        , Model_Checking::TRANSDATE(m_date_range->end_date(), LESS_OR_EQUAL));
-    const wxDateTime today = m_date_range->today();
+        , Model_Checking::TRANSDATE(date_range->start_date(), GREATER_OR_EQUAL)
+        , Model_Checking::TRANSDATE(date_range->end_date(), LESS_OR_EQUAL));
     const auto all_splits = Model_Splittransaction::instance().get_all();
     for (const auto& trx: transactions)
     {
@@ -177,7 +173,7 @@ void mmReportPayeeExpenses::getPayeeStats(std::map<int, std::pair<double, double
         if (Model_Checking::foreignTransactionAsTransfer(trx))
             continue;
 
-        double convRate = acc_conv_rates[trx.ACCOUNTID];
+        const double convRate = Model_CurrencyHistory::getDayRate(Model_Account::instance().get(trx.ACCOUNTID)->CURRENCYID, trx.TRANSDATE);
 
         Model_Splittransaction::Data_Set splits;
         if (all_splits.count(trx.id())) splits = all_splits.at(trx.id());

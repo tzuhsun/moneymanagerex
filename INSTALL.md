@@ -21,13 +21,8 @@ versions. Download installer or ZIP portable package from
 
 To use portable package simply extract files with directory structure
 preserved to selected directory on your hard disk, external drive, pen-drive
-etc. and start executable `mmex.exe`. This package not use any files outside
+etc. and start executable `mmex.exe`. This package does not use any files outside
 its directory.
-
-> To try the latest *nightly* developer build you can go to [AppVeyor], click
-> on `Win32` or `x64` platform then click on `ARTIFACTS` tab on the right
-> (above blue log window). Please remember this version can not work at all
-> or have serious bugs!
 
 Required *Visual C++ Runtime* and *Universal CRT* DLLs are included in MMEX
 packages. `msvc*.dll` and `vcruntime*.dll` can be safely deleted if the same
@@ -40,7 +35,29 @@ Windows 10 as they are a component of the Windows operating system.
 Linux
 -----
 
-#### From distribution repository
+### From Snap Store
+
+If you are using one of the 19 [snap supported] Linux distributions on amd64,
+arm64, armhf, i386, powerpc, ppc64el or s390x hardware then you can use snapd
+to install and run MMEX snap package available from [Snap Store].
+
+snapd is the service you need to install to run and manage snaps. Please
+follow [snapd installation instructions] for your distribution.
+
+To install MMEX open terminal window and run `sudo snap install mmex` command.
+Then you can run MMEX from your desktop menu or using `mmex` command.
+Snaps are updated automatically in the background to the latest version,
+every day.
+
+If you want to test unstable version of MMEX you can install with
+`sudo snap install --beta mmex` or upgrade with
+`sudo snap refresh mmex --beta` commands. You can list available MMEX versions
+with `snap info mmex` command.
+
+> Use unstable pre-release version (from *beta* or *edge* channels) at your
+> risk (work on your database copies!) to check or test newly added functions.
+
+### From distribution repository
 
 > Important: There are no MMEX packages in main repositories of popular Linux
 > distributions so far. Please use different methods described below.
@@ -51,18 +68,18 @@ install MMEX in Linux system.
 Open terminal window and run command from table below to install binary
 package with dependencies.
 
-| Distribution   | Shell command to install MMEX package                |
-|----------------|------------------------------------------------------|
-| Debian, Ubuntu | `sudo apt update; sudo apt install mmex`             |
-| openSUSE       | `sudo zypper refresh; sudo zypper install mmex`      |
-| Fedora         | `sudo dnf --refresh install mmex`                    |
-| CentOS         | `sudo yum clean expire-cache; sudo yum install mmex` |
-| Arch           | `sudo pacman -Syyu mmex`                             |
+| Distribution         | Shell command to install MMEX package                |
+|----------------------|------------------------------------------------------|
+| Debian, Ubuntu, Mint | `sudo apt update; sudo apt install mmex`             |
+| openSUSE             | `sudo zypper refresh; sudo zypper install mmex`      |
+| Fedora               | `sudo dnf --refresh install mmex`                    |
+| CentOS               | `sudo yum clean expire-cache; sudo yum install mmex` |
+| Arch                 | `sudo pacman -Syyu mmex`                             |
 
 MMEX can be started from desktop menu or from terminal window using `mmex`
 command.
 
-#### From MMEX repository
+### From MMEX repository
 
 You can configure your Linux distribution to use additional unofficial
 repository for additional packages.
@@ -73,10 +90,10 @@ repository for additional packages.
 MMEX developers created dedicated repository for MMEX binary packages for
 multiple Linux distributions at [packagecloud.io] hosting platform.
 New versions are published there automatically (using CI) when they arrive.
-Debian 8/9/10, CentOS 7, Fedora 24/25/26, Mint 18.1, openSUSE Leap 42.2/42.3,
-Ubuntu 16/17 are supported for now.
+Debian 8/9/10, CentOS 7, Fedora 24-29, Mint 18/19, openSUSE Leap 42.2/42.3,
+Ubuntu 16/17/18 are supported for now.
 
-> Warning: only unstable 64-bit versions of MMEX are available now.
+> Warning: only unstable versions of MMEX are available now.
 
 You can [add MMEX repository] to your system configuration using following
 commands from terminal window:
@@ -89,19 +106,28 @@ for DEB based Linux distributions or:
 
 for RPM based Linux distributions.
 
+> Linux Mint users should replace the `sudo bash` part in commands above
+> with `os=ubuntu dist=xenial sudo -E bash` for Mint 18 or with
+> `os=ubuntu dist=bionic sudo -E bash` for Mint 19.
+
 There are instructions to [manually add MMEX repo] to system configuration
 available too.
+
+> Important: in Ubuntu Artful (17.10) you need to manually add CodeLite
+> wxWidgets repo with following commands
+>
+>     sudo apt-key adv --fetch-keys http://repos.codelite.org/CodeLite.asc
+>     sudo apt-add-repository 'deb http://repos.codelite.org/wx3.1/ubuntu/ artful universe'
 
 You can use package manager from your distribution to install MMEX as
 described in previous section above **after** adding MMEX repository to your
 configuration.
 
-#### From manually downloaded binaries
+### From manually downloaded binaries
 
 Download package for your distribution from [GitHub Releases][GitHubDL].
-Arch, Debian 8/9/10, CentOS 7, Fedora 24/25/26/rawhide, Mint 18.1, openSUSE
-Leap 42.2/42.3/tumbleweed, Ubuntu 16/17, Slackware 14.2 are supported for now,
-64-bit only.
+Arch, Debian 8/9/10, CentOS 7, Fedora 24-29/rawhide, Mint 18/19, openSUSE
+Leap 42.2/42.3/tumbleweed, Ubuntu 16/17/18, Slackware 14.2 are supported for now.
 
 > Use unstable pre-release version (*alpha*, *beta*, *rc*) at your risk
 > (work on your database copies!) to check or test newly added functions.
@@ -124,20 +150,28 @@ webkitgtk and wxGTK3 (with webview support). They can be build from
 OS X / macOS
 ------------
 
-Download Drag'N'Drop package from [GitHub Releases][GitHubDL] for OS X 10.10
-Yosemite, OS X 10.11 El Capitan, or macOS 10.12 Sierra.
+Download Drag'N'Drop package (.dmg file) from [GitHub Releases][GitHubDL].
+OS X / macOS versions starting from 10.7 (Lion) are supported.
 
 > Use unstable pre-release version (*alpha*, *beta*, *rc*) at your risk
 > (work on your database copies!) to check or test newly added functions.
 
-> TODO: describe next installation steps
+Double click the downloaded file to mount it - name will show up in the Finder
+sidebar and a new Finder window will open showing MMEX icon, arrow and
+Applications folder shortcut.
+
+Drag the application icon to Applications to install (may need an
+administrator password to do this).
+
+Eject the mounted .dmg package by clicking the eject button in the Sidebar
+when the copy process is finished. You can delete the .dmg file after that.
 
 [BUILD.md]: BUILD.md
 [Windows]: #microsoft-windows
 [Linux]: #linux
 [macOS]: #os-x--macos
 [stable]: https://img.shields.io/github/release/moneymanagerex/moneymanagerex.svg?label=stable
-[unstable]: https://img.shields.io/github/release/moneymanagerex/moneymanagerex/all.svg?label=unstable
+[unstable]: https://img.shields.io/github/tag-pre/moneymanagerex/moneymanagerex.svg?label=unstable
 [GitHubDL]:
   https://github.com/moneymanagerex/moneymanagerex/releases
   "GitHub downloads"
@@ -149,3 +183,6 @@ Yosemite, OS X 10.11 El Capitan, or macOS 10.12 Sierra.
 [add MMEX repository]: https://packagecloud.io/moneymanagerex/moneymanagerex/install#bash
 [manually add MMEX repo]: https://packagecloud.io/moneymanagerex/moneymanagerex/install#manual
 [slackbuilds.org]: https://slackbuilds.org/
+[Snap Store]: https://snapcraft.io/mmex
+[snapd installation instructions]: https://docs.snapcraft.io/core/install
+[snap supported]: https://docs.snapcraft.io/core/install

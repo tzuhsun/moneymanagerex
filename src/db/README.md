@@ -4,7 +4,7 @@ Simple ORM to access database
 Creating New Database Tables
 ----------------------------
 1. New database table definitions are addded to the submodule: [database].
-   The definitions are added to the `tables_v1.sql` file.
+   The definitions are added to the `tables.sql` file.
 2. Use the files in the [/util] directory to construct the database files
    that reside in [/src/db]
 
@@ -19,7 +19,7 @@ Creating New Database Tables
    [Model_Pragma.h] and [Model_Pragma.cpp] found in the /util directory
    can be used as a template to help in the construction of the new
    `Model_xx.h` and `Model_xx.cpp` files for the associated
-   `DB_Table_xx.h` files.
+   `Table_xx.h` files.
 
 Updates to the Database Table
 -----------------------------

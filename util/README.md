@@ -1,22 +1,22 @@
 + **[sqlite2cpp.py]**
 
   To construct database accessing code in C++ for a given table definition
-  defined in file `../database/tables_v1.sql`
+  defined in file `../database/tables.sql`
   ```
-  python sqlite2cpp.py path_to_sql_file
+  python sqlite2cpp.py path_to_tables_file
   ```
 
 + **[sqliteupgrade2cpp.py]**
 
   To construct database upgrade code in C++ for a given table upgrade files
-  in folder `../database`
+  in folder `../database/incremental_upgrade`
   ```
-  python sqlite2cpp.py path_to_sql_file
+  python sqliteupgrade2cpp.py path_to_database_version_NN_files
   ```
 
 + **[build_db_tables.bat]**
 
-  To allow easy installation of `DB_Table_xxx.h` files by using file:
+  To allow easy installation of `Table_xxx.h` files by using file:
   `sqlite2cpp.py`
 
   Running batch file from current location will copy result files to the
@@ -52,7 +52,7 @@
   `doxygen` in this directory then open `./html/index.html` with any DHTML,
   Javascript and CSS enabled web browser.
 
-  To see all avaiable doxygen options and their descriptions update Doxyfile
+  To see all available doxygen options and their descriptions update Doxyfile
   with `doxygen -u`.
 
 + To compress mmex Windows executable file use [mpress] or [upx].

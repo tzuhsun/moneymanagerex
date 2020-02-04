@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "optionsettingsnet.h"
 #include "constants.h"
 #include "option.h"
+#include "webapp.h"
+
 
 #include <wx/hyperlink.h>
 #include <wx/spinctrl.h>
@@ -26,8 +28,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 /*******************************************************/
 wxBEGIN_EVENT_TABLE(OptionSettingsNet, wxPanel)
     EVT_TEXT(ID_DIALOG_OPTIONS_TEXTCTRL_PROXY, OptionSettingsNet::OnProxyChanged)
-    EVT_CHECKBOX(ID_DIALOG_OPTIONS_ENABLE_WEBSERVER, OptionSettingsNet::OnEnableWebserverChanged)
-    EVT_CHECKBOX(ID_DIALOG_OPTIONS_UPDATES_CHECK, OptionSettingsNet::OnUpdateCheckChanged)
+    EVT_BUTTON(ID_DIALOG_OPTIONS_BUTTON_WEBAPP_TEST, OptionSettingsNet::OnWebAppTest)
 wxEND_EVENT_TABLE()
 /*******************************************************/
 
@@ -76,8 +77,14 @@ void OptionSettingsNet::Create()
     WebAppGUIDTextCtr->SetToolTip(_("Specify the Web App GUID"));
     WebAppStaticBoxSizerGrid->Add(WebAppGUIDTextCtr, 1, wxEXPAND | wxALL, 5);
 
+    wxFlexGridSizer* WebAppStaticBoxSizerGridBottom = new wxFlexGridSizer(0, 2, 0, 10);
+    WebAppStaticBoxSizer->Add(WebAppStaticBoxSizerGridBottom, wxSizerFlags(g_flagsExpand).Proportion(0));
+
+    wxButton* WebAppTestButton = new wxButton(this, ID_DIALOG_OPTIONS_BUTTON_WEBAPP_TEST, _("Test connection"));
+    WebAppStaticBoxSizerGridBottom->Add(WebAppTestButton, 1, wxEXPAND | wxALL);
+
     wxHyperlinkCtrl* WebAppLink = new wxHyperlinkCtrl(this, wxID_STATIC, _("More information about WebApp"), mmex::weblink::WebApp);
-    WebAppStaticBoxSizer->Add(WebAppLink, wxSizerFlags(g_flagsV).Border(wxLEFT, 10));
+    WebAppStaticBoxSizerGridBottom->Add(WebAppLink, 1, wxEXPAND | wxALL);
 
     // Proxy Settings
     wxStaticBox* proxyStaticBox = new wxStaticBox(this, wxID_STATIC, _("Proxy Settings"));
@@ -104,30 +111,6 @@ void OptionSettingsNet::Create()
 
     proxyStaticBoxSizer->Add(flex_sizer3, g_flagsV);
 
-    // Web Server Settings
-    wxStaticBox* webserverStaticBox = new wxStaticBox(this, wxID_STATIC, _("Web Server"));
-    SetBoldFont(webserverStaticBox);
-    wxStaticBoxSizer* webserverStaticBoxSizer = new wxStaticBoxSizer(webserverStaticBox, wxVERTICAL);
-    networkPanelSizer->Add(webserverStaticBoxSizer, wxSizerFlags(g_flagsExpand).Proportion(0));
-
-    m_webserver_checkbox = new wxCheckBox(this, ID_DIALOG_OPTIONS_ENABLE_WEBSERVER
-        , _("Enable"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    m_webserver_checkbox->SetValue(GetIniDatabaseCheckboxValue("ENABLEWEBSERVER", false));
-    m_webserver_checkbox->SetToolTip(_("Enable internal web server when MMEX Starts."));
-
-    int webserverPort = Model_Setting::instance().GetIntSetting("WEBSERVERPORT", 8080);
-    m_webserver_port = new wxSpinCtrl(this, wxID_ANY,
-        wxEmptyString, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS, 0, 65535, webserverPort);
-    m_webserver_port->SetValue(webserverPort);
-    m_webserver_port->SetToolTip(_("Specify web server port number"));
-
-    wxFlexGridSizer* flex_sizer4 = new wxFlexGridSizer(0, 4, 0, 0);
-    flex_sizer4->Add(m_webserver_checkbox, g_flagsH);
-    flex_sizer4->Add(new wxStaticText(this, wxID_STATIC, _("Port")), g_flagsH);
-    flex_sizer4->Add(m_webserver_port, g_flagsH);
-
-    webserverStaticBoxSizer->Add(flex_sizer4, g_flagsV);
-
     //Usage data send
     wxStaticBox* usageStaticBox = new wxStaticBox(this, wxID_STATIC, _("Usage statistics"));
     SetBoldFont(usageStaticBox);
@@ -136,7 +119,7 @@ void OptionSettingsNet::Create()
 
     m_send_data = new wxCheckBox(this, wxID_ANY
         , _("Send anonymous statistics usage data"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-    m_send_data->SetValue(Option::instance().SendUsageStatistics());
+    m_send_data->SetValue(Option::instance().getSendUsageStatistics());
     m_send_data->SetToolTip(_("Enable to help us sending anonymous data about MMEX usage."));
 
     usageStaticBoxSizer->Add(m_send_data, g_flagsV);
@@ -160,13 +143,13 @@ void OptionSettingsNet::Create()
     timeoutStaticBoxSizer->Add(flex_sizer5, g_flagsV);
 
     //Updates check
-    wxStaticBox* updateStaticBox = new wxStaticBox(this, wxID_STATIC, _("Updates"));
+    wxStaticBox* updateStaticBox = new wxStaticBox(this, wxID_STATIC, _("Check for Updates"));
     SetBoldFont(updateStaticBox);
     wxStaticBoxSizer* updateStaticBoxSizer = new wxStaticBoxSizer(updateStaticBox, wxVERTICAL);
     networkPanelSizer->Add(updateStaticBoxSizer, wxSizerFlags(g_flagsExpand).Proportion(0));
 
     m_check_update = new wxCheckBox(this, ID_DIALOG_OPTIONS_UPDATES_CHECK
-        , _("Check for updates at StartUp"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+        , _("Check at StartUp"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     m_check_update->SetValue(GetIniDatabaseCheckboxValue("UPDATECHECK", true));
     m_check_update->SetToolTip(_("Enable to automatically check if new MMEX version is available at StartUp"));
 
@@ -176,33 +159,38 @@ void OptionSettingsNet::Create()
     m_update_source = new wxChoice(this, wxID_ANY
         , wxDefaultPosition, wxSize(150, -1), UpdatesType_);
     m_update_source->SetSelection(Model_Setting::instance().GetIntSetting("UPDATESOURCE", 0));
-    m_update_source->SetToolTip(_("Updates source"));
+    m_update_source->SetToolTip(_("Select updates source channel"));
 
-    wxFlexGridSizer* UpdateSourceStaticBoxSizerGrid = new wxFlexGridSizer(0, 2, 0, 0);
-    UpdateSourceStaticBoxSizerGrid->Add(m_check_update, g_flagsH);
+    wxFlexGridSizer* UpdateSourceStaticBoxSizerGrid = new wxFlexGridSizer(0, 3, 0, 0);
+    UpdateSourceStaticBoxSizerGrid->Add(new wxStaticText(this, wxID_STATIC, _("Select preferred version:")), g_flagsH);
     UpdateSourceStaticBoxSizerGrid->Add(m_update_source, g_flagsH);
+    UpdateSourceStaticBoxSizerGrid->Add(m_check_update, g_flagsH);
     updateStaticBoxSizer->Add(UpdateSourceStaticBoxSizerGrid, wxSizerFlags(g_flagsExpand).Proportion(0));
 
     wxCommandEvent evt;
     OptionSettingsNet::OnProxyChanged(evt);
-    OptionSettingsNet::OnEnableWebserverChanged(evt);
-    OptionSettingsNet::OnUpdateCheckChanged(evt);
     SetSizer(networkPanelSizer);
 }
 
-void OptionSettingsNet::OnProxyChanged(wxCommandEvent& event)
+void OptionSettingsNet::OnProxyChanged(wxCommandEvent& WXUNUSED(event))
 {
     m_proxy_port->Enable(m_proxy_address->GetValue() != "");
 }
 
-void OptionSettingsNet::OnEnableWebserverChanged(wxCommandEvent& event)
+void OptionSettingsNet::OnWebAppTest(wxCommandEvent& WXUNUSED(event))
 {
-    m_webserver_port->Enable(m_webserver_checkbox->GetValue());
-}
-
-void OptionSettingsNet::OnUpdateCheckChanged(wxCommandEvent& event)
-{
-    m_update_source->Enable(m_check_update->GetValue());
+    OptionSettingsNet::SaveSettings();
+    if (mmWebApp::WebApp_CheckEnabled())
+    {
+        if (mmWebApp::WebApp_CheckGuid() && mmWebApp::WebApp_CheckApiVersion())
+        {
+            wxMessageBox(_("WebApp connection tested successfully!"), _("WebApp connection test"));
+        }
+    }
+    else
+    {
+        wxMessageBox(_("Some parameters are missing."), _("WebApp connection test"));
+    }
 }
 
 void OptionSettingsNet::SaveSettings()
@@ -210,16 +198,13 @@ void OptionSettingsNet::SaveSettings()
     Model_Setting::instance().Set("PROXYIP", m_proxy_address->GetValue());
     Model_Setting::instance().Set("PROXYPORT", m_proxy_port->GetValue());
 
-    wxTextCtrl* WebAppURL = (wxTextCtrl*) FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_WEBAPPURL);
+    wxTextCtrl* WebAppURL = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_WEBAPPURL));
     Model_Infotable::instance().Set("WEBAPPURL", WebAppURL->GetValue());
 
-    wxTextCtrl* WebAppGUID = (wxTextCtrl*) FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_WEBAPPGUID);
+    wxTextCtrl* WebAppGUID = static_cast<wxTextCtrl*>(FindWindow(ID_DIALOG_OPTIONS_TEXTCTRL_WEBAPPGUID));
     Model_Infotable::instance().Set("WEBAPPGUID", WebAppGUID->GetValue());
 
-    Model_Setting::instance().Set("ENABLEWEBSERVER", m_webserver_checkbox->GetValue());
-    Model_Setting::instance().Set("WEBSERVERPORT", m_webserver_port->GetValue());
-
-    Option::instance().SendUsageStatistics(m_send_data->GetValue());
+    Option::instance().setSendUsageStatistics(m_send_data->GetValue());
 
     Model_Setting::instance().Set("NETWORKTIMEOUT", m_network_timeout->GetValue());
 

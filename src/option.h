@@ -1,5 +1,6 @@
 /*******************************************************
  Copyright (C) 2006 Madhan Kanagavel
+ Copyright (C) 2016 - 2017 Stefano Giorgio [stef145g]
  Copyright (C) 2017 James Higley
 
  This program is free software; you can redistribute it and/or modify
@@ -21,6 +22,7 @@
 #define MM_EX_OPTION_H_
 
 #include "defs.h"
+#include <vector>
 
 class mmPrintableBase;
 
@@ -36,93 +38,102 @@ public:
 
 public:
     Option();
-    ~Option();
     static Option& instance();
     void LoadOptions(bool include_infotable = true);
 
     // set and save the option: m_dateFormat
-    void DateFormat(const wxString& datefornat);
-    wxString DateFormat();
+    void setDateFormat(const wxString& datefornat);
+    const wxString getDateFormat() const;
 
     // set and save the option: m_language
-    void Language(wxString& language);
-    wxString Language(bool get_db = false);
+    void setLanguage(wxLanguage& language);
+    wxLanguage getLanguageID(bool get_db = false);
+    // get 2-letter ISO 639-1 code
+    const wxString getLanguageISO6391(bool get_db = false);
 
     // set and save the option: m_userNameString
-    void UserName(const wxString& username);
-    wxString UserName();
+    void setUserName(const wxString& username);
+    const wxString getUserName() const;
 
     // set and save the option: m_financialYearStartDayString
-    void FinancialYearStartDay(const wxString& setting);
-    wxString FinancialYearStartDay();
+    void setFinancialYearStartDay(const wxString& setting);
+    const wxString getFinancialYearStartDay() const;
 
     // set and save the option: m_financialYearStartMonthString
-    void FinancialYearStartMonth(const wxString& setting);
-    wxString FinancialYearStartMonth();
+    void setFinancialYearStartMonth(const wxString& setting);
+    const wxString getFinancialYearStartMonth() const;
 
     // set the base currency ID
-    void BaseCurrency(int base_currency_id);
+    void setBaseCurrencyID(int base_currency_id);
     // returns the base currency ID
-    int BaseCurrency();
+    int getBaseCurrencyID() const;
 
     // set and save the option: m_databaseUpdated
-    void DatabaseUpdated(bool value);
-    bool DatabaseUpdated();
+    void setDatabaseUpdated(bool value);
+    bool getDatabaseUpdated() const;
 
-    void BudgetFinancialYears(bool value);
-    bool BudgetFinancialYears();
+    void setBudgetFinancialYears(bool value);
+    bool getBudgetFinancialYears() const;
 
-    void BudgetIncludeTransfers(bool value);
-    bool BudgetIncludeTransfers();
-    
-    void BudgetSetupWithoutSummaries(bool value);
-    bool BudgetSetupWithoutSummaries();
+    void setBudgetIncludeTransfers(bool value);
+    bool getBudgetIncludeTransfers() const;
 
-    void BudgetReportWithSummaries(bool value);
-    bool BudgetReportWithSummaries();
+    void setBudgetSetupWithoutSummaries(bool value);
+    bool getBudgetSetupWithoutSummaries() const;
 
-    void IgnoreFutureTransactions(bool value);
-    bool IgnoreFutureTransactions();
+    void setBudgetReportWithSummaries(bool value);
+    bool getBudgetReportWithSummaries() const;
 
-    void TransPayeeSelection(int value);
-    int TransPayeeSelection();
+    void setIgnoreFutureTransactions(bool value);
+    bool getIgnoreFutureTransactions() const;
 
-    void TransCategorySelection(int value);
-    int TransCategorySelection();
+    void setTransPayeeSelection(int value);
+    int getTransPayeeSelection() const;
 
-    void TransStatusReconciled(int value);
-    int TransStatusReconciled();
+    void setTransCategorySelection(int value);
+    int getTransCategorySelection() const;
 
-    void TransDateDefault(int value);
-    int TransDateDefault();
+    void setTransStatusReconciled(int value);
+    int getTransStatusReconciled() const;
 
-    void SendUsageStatistics(bool value);
-    bool SendUsageStatistics();
+    void setTransDateDefault(int value);
+    int getTransDateDefault() const;
 
-    void SharePrecision(int value);
-    int SharePrecision();
+    void setSendUsageStatistics(bool value);
+    bool getSendUsageStatistics() const;
 
-    /* stored value in percantage for scale html font and other objects */
-    void HtmlFontSize(int value);
-    int HtmlFontSize();
+    void setSharePrecision(int value);
+    int getSharePrecision() const;
 
-    void IconSize(int value);
-    int IconSize();
+    /* stored value in percentage for scale html font and other objects */
+    void setHtmlFontSize(int value);
+    int getHtmlFontSize() const;
 
-    const int AccountImageId(int account_id, bool def = false);
+    // Allows a year or financial year to start before or after the 1st of the month.
+    void setBudgetDaysOffset(int value);
+    int getBudgetDaysOffset() const;
+    /**Re-adjust date by the date offset value*/
+    void setBudgetDateOffset(wxDateTime& date) const;
 
-    void HideReport(int report, bool value);
-    bool HideReport(int report);
-    int ReportCount();
-    wxString ReportFullName(int report);
-    wxString ReportGroup(int report);
-    wxString ReportName(int report);
-    bool BudgetReport(int report);
-    mmPrintableBase* ReportFunction(int report);
+    void setIconSize(int value);
+    int getIconSize() const;
+
+    int getAccountImageId(int account_id, bool def = false) const;
+
+    void setHideReport(int report, bool value);
+    bool getHideReport(int report) const;
+    int getReportCount() const;
+    const wxString getReportFullName(int report) const;
+    const wxString getReportGroup(int report) const;
+    const wxString getReportName(int report) const;
+    bool getBudgetReport(int report) const;
+    mmPrintableBase* getReportFunction(int report) const;
 
 private:
+    bool isReportIDCorrect(int report) const;
+    int m_report_count;
     wxString m_dateFormat;
-    wxString m_language;
+    wxLanguage m_language;
     wxString m_userNameString;
     wxString m_financialYearStartDayString;
     wxString m_financialYearStartMonthString;
@@ -144,12 +155,123 @@ private:
 
     int m_html_font_size;
     int m_ico_size;
-
+    int m_budget_days_offset;
     int m_hideReport;
-    wxArrayPtrVoid m_reports;
+    struct ReportInfo;
+    std::vector<Option::ReportInfo> m_reports;
 
-    wxString ReportSettings(int id);
+    const wxString ReportSettings(int id) const;
 };
+
+inline const wxString Option::getUserName() const
+{
+    return m_userNameString;
+}
+
+inline const wxString Option::getFinancialYearStartDay() const
+{
+    return m_financialYearStartDayString;
+}
+
+inline const wxString Option::getFinancialYearStartMonth() const
+{
+    return m_financialYearStartMonthString;
+}
+
+inline int Option::getBaseCurrencyID() const
+{
+    return m_baseCurrency;
+}
+
+inline bool Option::getDatabaseUpdated() const
+{
+    return m_databaseUpdated;
+}
+
+inline const wxString Option::getDateFormat() const
+{
+    return m_dateFormat;
+}
+
+inline bool Option::getBudgetFinancialYears() const
+{
+    return m_budgetFinancialYears;
+}
+
+inline bool Option::getBudgetIncludeTransfers() const
+{
+    return m_budgetIncludeTransfers;
+}
+
+inline bool Option::getBudgetSetupWithoutSummaries() const
+{
+    return m_budgetSetupWithoutSummaries;
+}
+
+inline bool Option::getBudgetReportWithSummaries() const
+{
+    return m_budgetReportWithSummaries;
+}
+
+inline bool Option::getIgnoreFutureTransactions() const
+{
+    return m_ignoreFutureTransactions;
+}
+
+inline int Option::getTransPayeeSelection() const
+{
+    return m_transPayeeSelection;
+}
+
+inline int Option::getTransCategorySelection() const
+{
+    return m_transCategorySelection;
+}
+
+inline int Option::getTransStatusReconciled() const
+{
+    return m_transStatusReconciled;
+}
+
+inline int Option::getTransDateDefault() const
+{
+    return m_transDateDefault;
+}
+
+inline int Option::getSharePrecision() const
+{
+    return m_sharePrecision;
+}
+
+inline bool Option::getSendUsageStatistics() const
+{
+    return m_usageStatistics;
+}
+
+inline int Option::getHtmlFontSize() const
+{
+    return m_html_font_size;
+}
+
+inline int Option::getBudgetDaysOffset() const
+{
+    return m_budget_days_offset;
+}
+
+inline int Option::getIconSize() const
+{
+    return m_ico_size;
+}
+
+inline int Option::getReportCount() const
+{
+    return m_report_count;
+}
+
+inline bool Option::isReportIDCorrect(int report) const
+{
+    return (report >= 0) && (report < getReportCount());
+}
 
 #endif // MM_EX_OPTION_H_
 //----------------------------------------------------------------------------

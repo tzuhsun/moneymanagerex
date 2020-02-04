@@ -23,8 +23,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "util.h"
 #include "../resources/mmexico.xpm"
 //----------------------------------------------------------------------------
-#include "model/Model_Setting.h"
-#include "model/Model_Infotable.h"
+#include "Model_Setting.h"
+#include "Model_Infotable.h"
 //----------------------------------------------------------------------------
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
@@ -134,11 +134,9 @@ wxString mmex::getPathDoc(const EDocFile& f)
 
     wxASSERT(f >= 0 && f < DOC_FILES_MAX);
 
-    wxString path = GetDocDir().GetPath();
-    path += wxFileName::GetPathSeparator();
-    path += files[f];
-
-    return path;
+    wxString path = files[f];
+    path.Replace("/",wxFileName::GetPathSeparator());
+    return path.Prepend(GetDocDir().GetPathWithSep());
 }
 //----------------------------------------------------------------------------
 
@@ -167,10 +165,9 @@ const wxString mmex::getPathShared(ESharedFile f)
 
     wxASSERT(f >= 0 && f < SHARED_FILES_MAX);
 
-    wxFileName fname = GetSharedDir();
-    fname.SetFullName(files[f]);
-
-    return fname.GetFullPath();
+    wxString path = files[f];
+    path.Replace("/",wxFILE_SEP_PATH);
+    return path.Prepend(GetSharedDir().GetPathWithSep());
 }
 //----------------------------------------------------------------------------
 
@@ -230,8 +227,9 @@ const wxString mmex::getTempFolder()
     return wxString::Format("%s%s%s%s", path, wxString(wxFILE_SEP_PATH), folder, wxString(wxFILE_SEP_PATH));
 }
 
-const wxString mmex::getReportFullName(const wxString& name)
+const wxString mmex::getReportFullFileName(const wxString& WXUNUSED(name))
 {
+// FIXME: remove name param or use it below inplace of "index"
     return wxString::Format("%s%s%shtml", mmex::getTempFolder()
         , "index"
         , wxString(wxFILE_SEP_EXT));

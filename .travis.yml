@@ -1,88 +1,176 @@
 language: cpp
-dist: trusty
+dist: xenial
 sudo: required
 services: [ docker ]
-git: { depth: 10 } # don't clone all history from repo, leave 10 for build queue
+git: { depth: false }
 os: linux # default build params for matrix
 compiler: gcc
+cache: ccache
 
 env:
   global:
-  - MAKEFLAGS=-j4
-  - BUILD_TYPE=Release
-  - BUILD_TESTS=OFF
+  - CCACHE_SLOPPINESS=time_macros
+  - CMAKE_BUILD_PARALLEL_LEVEL=4
+  - MAKEFLAGS=-j$CMAKE_BUILD_PARALLEL_LEVEL
+  - BUILD_TYPE=$(if [[ "$TRAVIS_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then if [[ "$TRAVIS_TAG" =~ -[a-z] ]]; then echo RelWithDebInfo; else echo Release; fi; else echo Debug; fi)
   matrix: # targets for linux
   - OS=debian DIST=jessie
   - OS=debian DIST=stretch
   - OS=debian DIST=buster
+  - OS=debian DIST=bullseye
+  - OS=debian DIST=jessie ARCH=x86
+  - OS=debian DIST=stretch ARCH=x86
+  - OS=debian DIST=stretch ARCH=armhf
+  - OS=debian DIST=buster ARCH=x86
+  - OS=debian DIST=bullseye ARCH=x86
   - OS=ubuntu DIST=xenial
   - OS=ubuntu DIST=zesty
   - OS=ubuntu DIST=artful
-  - OS=fedora
+  - OS=ubuntu DIST=bionic
+  - OS=ubuntu DIST=cosmic
+  - OS=ubuntu DIST=disco
+  - OS=ubuntu DIST=eoan
+  - OS=ubuntu DIST=xenial ARCH=x86
+  - OS=ubuntu DIST=zesty ARCH=x86
+  - OS=ubuntu DIST=artful ARCH=x86
+  - OS=ubuntu DIST=bionic ARCH=x86
+  - OS=ubuntu DIST=cosmic ARCH=x86
+  - OS=ubuntu DIST=disco ARCH=x86
+  - OS=ubuntu DIST=disco ARCH=armhf
+  - OS=ubuntu DIST=eoan ARCH=x86
+  - OS=ubuntu DIST=eoan ARCH=armhf
   - OS=fedora DIST=24
   - OS=fedora DIST=25
   - OS=fedora DIST=26
-  - OS=opensuse
+  - OS=fedora DIST=27
+  - OS=fedora DIST=28
+  - OS=fedora DIST=29
+  - OS=fedora DIST=30
+  # - OS=opensuse # see issue #1903 on GitHub
+  - OS=opensuse DIST=42.1
   - OS=opensuse DIST=42.2
   - OS=opensuse DIST=42.3
+  # - OS=opensuse DIST=15.0 # see issue #1903 on GitHub
+  # - OS=opensuse DIST=15.1 # see issue #1903 on GitHub
   - OS=archlinux
   - OS=el DIST=7 # DIST=6 doesn't provide webview in wxGTK3
-  - OS=linuxmint DIST=serena
+  - OS=el DIST=8
   - OS=slackware DIST=14.2 # DIST=14.1 has cmake 2.x
 
 matrix:
   fast_finish: true
+
   include: # add non-linux targets
-  - { os: osx, osx_image: xcode6.4, env: OS=osx DIST=yosemite }
-  - { os: osx, osx_image: xcode8, env: OS=osx DIST=el_capitan }
-  - { os: osx, osx_image: xcode9, env: OS=macos DIST=sierra }
-  exclude:
-  - { osx_image: xcode6.4, env: BUILD_TESTS=ON } # libtoolize problems
+  - name: Validate HTML CSS SVG
+    git: { submodules: false }
+    language: java
+    jdk: openjdk8
+    cache: pip
+    services:
+    install: pip install --user html5validator
+    before_script: skip
+    script: |-
+      set -o pipefail
+      html5validator --also-check-svg --also-check-css --blacklist 3rd --root . |& \
+        sed "s#file:$TRAVIS_BUILD_DIR/./##"
+    after_success: skip
+    deploy: skip
+    env: OS=none
+    if: tag != nightly
+  - os: osx
+    osx_image: xcode11.2
+    compiler: clang
+    env: OS=macos DIST=10.7
+
   allow_failures:
+  - language: java # Validate HTML CSS SVG
   - env: OS=debian DIST=jessie
   - env: OS=debian DIST=stretch
   - env: OS=debian DIST=buster
+  - env: OS=debian DIST=bullseye
+  - env: OS=debian DIST=jessie ARCH=x86
+  - env: OS=debian DIST=stretch ARCH=x86
+  - env: OS=debian DIST=stretch ARCH=armhf
+  - env: OS=debian DIST=buster ARCH=x86
+  - env: OS=debian DIST=bullseye ARCH=x86
   - env: OS=ubuntu DIST=xenial
+  - env: OS=ubuntu DIST=zesty
   - env: OS=ubuntu DIST=artful
-  - env: OS=fedora
+  - env: OS=ubuntu DIST=bionic
+  - env: OS=ubuntu DIST=cosmic
+  - env: OS=ubuntu DIST=disco
+  - env: OS=ubuntu DIST=xenial ARCH=x86
+  - env: OS=ubuntu DIST=zesty ARCH=x86
+  - env: OS=ubuntu DIST=artful ARCH=x86
+  - env: OS=ubuntu DIST=bionic ARCH=x86
+  - env: OS=ubuntu DIST=cosmic ARCH=x86
+  - env: OS=ubuntu DIST=disco ARCH=x86
+  - env: OS=ubuntu DIST=disco ARCH=armhf
+  - env: OS=ubuntu DIST=eoan ARCH=x86
+  - env: OS=ubuntu DIST=eoan ARCH=armhf
   - env: OS=fedora DIST=24
   - env: OS=fedora DIST=25
   - env: OS=fedora DIST=26
+  - env: OS=fedora DIST=27
+  - env: OS=fedora DIST=28
+  - env: OS=fedora DIST=29
+  - env: OS=fedora DIST=30
   - env: OS=opensuse
+  - env: OS=opensuse DIST=42.1
   - env: OS=opensuse DIST=42.2
   - env: OS=opensuse DIST=42.3
+  - env: OS=opensuse DIST=15.0
+  - env: OS=opensuse DIST=15.1
   - env: OS=archlinux
-  - env: OS=linuxmint DIST=serena
-  - env: OS=osx DIST=yosemite
-  - env: OS=osx DIST=el_capitan
+  - env: OS=el DIST=7
   - env: OS=slackware DIST=14.2
 
 install: |-
-  DOCKER=moneymanagerex/mmex_build_env:$OS${DIST:+.$DIST}
   case $TRAVIS_OS_NAME in
     linux)
+      DOCKER=moneymanagerex/mmex_build_env:$OS${DIST:+.$DIST}${ARCH:+.$ARCH}
+      ccache -cs || true
       docker pull ${DOCKER}
-      docker build dockers/$OS${DIST:+.$DIST} --cache-from ${DOCKER} -t ${DOCKER}
+      docker build dockers/$OS${DIST:+.$DIST}${ARCH:+.$ARCH} --cache-from ${DOCKER} -t ${DOCKER}
       ;;
     osx)
-      BREW=wxmac
-      brew list gettext >/dev/null || BREW="$BREW gettext"
-      brew list libtool >/dev/null || BREW="$BREW libtool"
-      brew list automake >/dev/null || BREW="$BREW automake"
-      brew install $BREW && brew link --force gettext libtool
+      export MACOSX_DEPLOYMENT_TARGET=$DIST
+      brew update && brew bundle --verbose --file=util/Brewfile
+      ccache -cs && export PATH="/usr/local/opt/ccache/libexec:$PATH"
+      cd $HOME
+      curl -fsSL -O https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.3/wxWidgets-3.1.3.tar.bz2
+      tar xzf wxWidgets-*.tar.bz2
+      cd wxWidgets-3.1.3
+      ./configure --disable-shared --enable-cxx11 --with-cxx=11 \
+        --with-macosx-version-min=$MACOSX_DEPLOYMENT_TARGET \
+        --without-libtiff
+      make install
       ;;
   esac
-  mkdir build && cd build
+
+before_script:
+- cd $TRAVIS_BUILD_DIR/src/db
+- python3 ../../util/sqlite2cpp.py ../../database/tables.sql && rm -f sql*.sql *.mmdbg
+- python3 ../../util/sqliteupgrade2cpp.py ../../database/incremental_upgrade
+- cd ../.. && mkdir build && cd build
 
 script: |-
-  CMAKE_CMD="cmake -DMMEX_BUILD_TESTS=$BUILD_TESTS -DCMAKE_BUILD_TYPE=$BUILD_TYPE .."
+  CMAKE_CMD="cmake ${ARCH:+-DCMAKE_TOOLCHAIN_FILE=util/toolchain-$TRAVIS_OS_NAME-$ARCH.cmake} .."
   case $TRAVIS_OS_NAME in
     linux)
+      chmod -fR a+rwX $HOME/.ccache
       docker run -it --rm -w /moneymanagerex/build -e MAKEFLAGS \
-                 -v $TRAVIS_BUILD_DIR:/moneymanagerex ${DOCKER} \
-        bash -c "$CMAKE_CMD && make package" ;;
+                -v $HOME/.ccache:/root/.ccache \
+                -v $TRAVIS_BUILD_DIR:/moneymanagerex ${DOCKER} \
+        bash -c "$CMAKE_CMD -DCMAKE_BUILD_TYPE=$BUILD_TYPE && cmake --build . --target package && eval \$MMEX_INST_CMD" ;;
     osx)
-      $CMAKE_CMD && make package ;;
+      export CXXFLAGS=-stdlib=libc++ # exports required by Xcode 10 or later
+      export LDFLAGS=-stdlib=libc++
+      $CMAKE_CMD -G Xcode && cmake --build . --target package --config $BUILD_TYPE -- \
+        CC=/usr/local/opt/ccache/libexec/clang \
+        CPLUSPLUS=/usr/local/opt/ccache/libexec/clang++ | \
+        xcpretty -c -f `xcpretty-travis-formatter`; test ${PIPESTATUS[0]} -eq 0
+      ;;
   esac
 
 notifications: # set notification options
@@ -93,12 +181,19 @@ notifications: # set notification options
     on_failure: always
 
 after_success:
+- ccache -cs || true
 # Rename mac packages
 - if [ $TRAVIS_OS_NAME = osx ]; then
-    for p in *.dmg; do mv -v $p ${p%Darwin.*}$OS.$DIST.dmg; done; fi
-# Rename Slackware packages
-- if [ $OS = slackware ]; then
-    for p in *.tar.xz; do mv -v $p ${p%.tar.xz}.txz; done; fi
+    for p in *.dmg; do mv -v $p ${p%Darwin.*}$OS.dmg; done; fi
+
+# Rename files for GH Releases upload as workaround for travis-ci/dpl#821
+before_deploy: |-
+  if [[ ! -d gh_releases ]]; then
+    mkdir gh_releases
+    for f in *.{deb,rpm,dmg,txz,pkg.tar.xz}; do
+      if [[ -e "$f" ]]; then cp -v "$f" "gh_releases/${f//\~/.}"; fi
+    done
+  fi
 
 # Set encrypted variable 'GitHub_auth_token' in Travis repo settings to deploy packages
 # for tagged commits to GitHub Releases.
@@ -108,23 +203,20 @@ deploy:
 - provider: releases
   api_key: $GitHub_auth_token
   file_glob: true
-  file: $TRAVIS_BUILD_DIR/build/*.{deb,rpm,dmg,txz,pkg.tar.xz}
+  file: gh_releases/*.{deb,rpm,dmg,txz,pkg.tar.xz}
   skip_cleanup: true
-  on: # Set deploy conditions
-      # Deploy only when tag is specified
-      tags: true
-      # and only when API token is set
-      condition: "${#GitHub_auth_token} != 0 && $BUILD_TYPE = Release"
+  prerelease: true
+  overwrite: true
+  on:
+    tags: true
+    condition: ${#GitHub_auth_token} != 0
 - provider: packagecloud
   repository: ${TRAVIS_REPO_SLUG#*/}
   username: ${TRAVIS_REPO_SLUG%/*}
   token: $PACKAGECLOUD_TOKEN
   dist: $OS/$DIST
-  package_glob: $TRAVIS_BUILD_DIR/build/*.{deb,rpm}
+  package_glob: ./*.{deb,rpm}
   skip_cleanup: true
-  on: # Set deploy conditions
-      # Deploy only when tag is specified
-      tags: true
-      # and only packages generated by gcc from Linux
-      # and only when API token is set
-      condition: "$TRAVIS_OS_NAME = linux && ${#DIST} != 0 && $OS != slackware && ${#PACKAGECLOUD_TOKEN} != 0 && $BUILD_TYPE = Release"
+  on:
+    tags: true
+    condition: $TRAVIS_OS_NAME = linux && ${#DIST} != 0 && $OS != slackware && ${#PACKAGECLOUD_TOKEN} != 0 && $TRAVIS_TAG != nightly

@@ -1,7 +1,18 @@
 FROM fedora:25
-MAINTAINER developers@moneymanagerex.org
+LABEL maintainer="developers@moneymanagerex.org"
 RUN dnf -y install --setopt=install_weak_deps=False \
-        cmake gcc-c++ gettext git make rpm-build redhat-lsb-core \
-        webkitgtk3-devel wxGTK3-devel \
-        automake libtool \
+      ccache \
+      cmake \
+      gcc-c++ \
+      gettext \
+      git \
+      libcurl-devel \
+      lua-devel \
+      make \
+      rapidjson-devel \
+      redhat-lsb-core \
+      rpm-build \
+      wxGTK3-devel \
  && dnf clean all
+
+ENV MMEX_INST_CMD dnf -y install ./mmex-*.rpm

@@ -49,7 +49,7 @@ extern const wxString DEFDELIMTER;
 const wxString getProgramName();
 const wxString getTitleProgramVersion();
 const wxString getProgramCopyright();
-const wxString getProgramDescription();
+const wxString getCaption(const wxString& caption);
 
 /*************************************************************************
  MMEX_VERSION
@@ -61,22 +61,16 @@ namespace version
     const int Major = MMEX_VERSION_MAJOR;
     const int Minor = MMEX_VERSION_MINOR;
     const int Patch = MMEX_VERSION_PATCH;
-    const int Alpha = MMEX_VERSION_ALPHA;
-    const int Beta  = MMEX_VERSION_BETA;
-    const int RC    = MMEX_VERSION_RC;
-    extern const wxString string;
-    extern const wxString generateProgramVersion
-        (int vMajor, int vMinor, int vPatch, int vAlpha, int vBeta, int vRC);
+    const wxString string = MMEX_VERSION_FULL;
+    int getDbLatestVersion();
 }
 
 namespace weblink
 {
     const wxString addReferralToURL(const wxString& BaseURL, const wxString& CampSource);
+    extern const wxString GA;
     extern const wxString WebSite;
-    extern const wxString Update;
-    extern const wxString UpdateLinks;
-    extern const wxString Changelog;
-    extern const wxString Download;
+    extern const wxString Releases;
     extern const wxString News;
     extern const wxString NewsRSS;
     extern const wxString Forum;
@@ -86,12 +80,15 @@ namespace weblink
     extern const wxString Slack;
     extern const wxString BugReport;
     extern const wxString Donate;
+    extern const wxString Crowdin;
+    extern const wxString Chiark;
     extern const wxString SquareCashGuan;
     extern const wxString Twitter;
     extern const wxString Facebook;
     extern const wxString YahooQuotes;
     extern const wxString YahooQuotesHistory;
-    extern const wxString BceCurrencyHistory;
+    extern const wxString CoinCapHistory;
+    extern const wxString CoinCap;
     extern const wxString DefStockUrl;
     extern const wxString GooglePlay;
     extern const wxString WebApp;
@@ -107,9 +104,11 @@ extern const wxString VIEW_TRANS_LAST_MONTH_STR;
 extern const wxString VIEW_TRANS_LAST_3MONTHS_STR;
 extern const wxString VIEW_TRANS_LAST_12MONTHS_STR;
 extern const wxString VIEW_TRANS_CURRENT_YEAR_STR;
-extern const wxString VIEW_TRANS_CURRENT_FIN_YEAR_STR;
+extern const wxString VIEW_TRANS_CRRNT_FIN_YEAR_STR;
 extern const wxString VIEW_TRANS_LAST_YEAR_STR;
 extern const wxString VIEW_TRANS_LAST_FIN_YEAR_STR;
+extern const wxString VIEW_TRANS_SINCE_STATEMENT_STR;
+extern const wxString VIEW_TRANS_FILTER_DIALOG_STR;
 
 extern const wxString VIEW_ACCOUNTS_ALL_STR;
 extern const wxString VIEW_ACCOUNTS_OPEN_STR;
@@ -148,6 +147,7 @@ enum id
     MENU_BILLSDEPOSITS,
     MENU_STOCKS,
     MENU_GOTOACCOUNT,
+    MENU_REPORT_BUG,
     MENU_ASSETS,
     MENU_VIEW_BUDGET_FINANCIAL_YEARS,
     MENU_VIEW_BUDGET_SETUP_SUMMARY,

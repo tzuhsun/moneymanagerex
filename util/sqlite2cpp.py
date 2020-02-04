@@ -1,23 +1,28 @@
 #!/usr/bin/env python
-# vi:tabstop=4:expandtab:shiftwidth=4:softtabstop=4:autoindent:smarttab
+# vi:tabstop=4:expandtab:shiftwidth=4:softtabstop=4:autoindent:smarttab:fileencoding=utf-8
 '''
 Usage: python sqlite2cpp.py path_to_sql_file
 '''
 
 import sys
 import os
-import datetime
 import sqlite3
-import codecs
+import subprocess
+from io import open
 
-currency_unicode_patch_filename = 'currency_table_unicode_fix_patch.mmdbg'
-currency_table_patch_filename = 'currency_table_upgrade_patch.mmdbg'
+currency_unicode_patch_filename = 'currencies_update_patch_unicode_only.mmdbg'
+currency_table_patch_filename = 'currencies_update_patch.mmdbg'
+sql_tables_data_filename = 'sql_tables.sql'
 
 # http://stackoverflow.com/questions/196345/how-to-check-if-a-string-in-python-is-in-ascii
 def is_ascii(s):
     """Class: Check for Ascii String"""
-    if isinstance(s, unicode):
-        return all(ord(c) < 128 for c in s)
+    if sys.version_info < (3,):
+        if isinstance(s, unicode):
+            return all(ord(c) < 128 for c in s)
+    else:
+        if isinstance(s, str):
+            return all(ord(c) < 128 for c in s)
     return False
 
 def is_trans(s):
@@ -33,14 +38,23 @@ def is_trans(s):
 
     return False
 
+def adjust_translate(s):
+    """Return the correct translated syntax for c++"""
+    trans_str = s.replace("_tr_", "").replace('"','')
+    trans_str = 'wxTRANSLATE("' + trans_str + '")'
+
+    return trans_str
 
 def translation_for(s):
     """Return the correct translated syntax for c++"""
+    trans_str = ''
     if not is_ascii(s):  # it is unicode string
-        trans_str = 'L"%s"' % s
+        if len(s) > 4 and s[0:4] == "_tr_": # requires wxTRANSLATE for cpp
+            trans_str = adjust_translate(s)
+        else:
+            trans_str = 'L"%s"' % s
     else:
-        trans_str = s.replace("_tr_", "")
-        trans_str = 'wxTRANSLATE("' + trans_str + '")'
+        trans_str = adjust_translate(s)
 
     return trans_str
 
@@ -107,85 +121,84 @@ class DB_Table:
         self._data = data
 
     def generate_currency_table_data(self, sf1, utf_only):
-        """Extract currency table data from table_v1
-           Return string of insert commands
+        """Extract currency table data from table.sql
+           Return string of update commands
            Will only get unicode data line when utf_only is true"""
 
         for row in self._data:
-            values = ', '.join(["'%s'" % i if is_trans(i) else "'%s'" % i for i in row])
+            values = ', '.join(["%s='%s'" % (k, row[k]) for k in row.keys() if k.upper() != 'CURRENCYID' and k.upper() != 'CURRENCY_SYMBOL'])
             values = values.replace('_tr_', '')
-            values = 'INSERT OR REPLACE INTO %s VALUES(%s)' % (self._table, values)
 
-            if utf_only and not is_ascii(values): # Write UTF currency data data only
+            if not utf_only or not is_ascii(values):
                 sf1 += '''
-%s;''' % (values)
-
-            if not utf_only: # Write all currency data
-                sf1 += '''
-%s;''' % (values)
+INSERT OR IGNORE INTO %s (CURRENCYNAME, CURRENCY_SYMBOL) VALUES ('%s', '%s');
+UPDATE OR IGNORE %s SET %s WHERE CURRENCY_SYMBOL='%s';''' % (self._table, row['CURRENCYNAME'].replace('_tr_', ''), row['CURRENCY_SYMBOL'], self._table, values, row['CURRENCY_SYMBOL'])
 
         return sf1
 
     def generate_unicode_currency_upgrade_patch(self):
         """Write database_version data to file
            Only extract unicode data"""
-        if self._table.upper() == 'CURRENCYFORMATS_V1':
-            print 'Generate patch file: %s' % currency_unicode_patch_filename
-            rfp = codecs.open(currency_unicode_patch_filename, 'w', 'utf-8')
-            sf1 = '-- MMEX Debug SQL - Update --'
-            rfp.write(self.generate_currency_table_data(sf1, True))
-            rfp.close()
+        if self._table.upper() == 'CURRENCYFORMATS':
+            print('Generate patch file: %s' % currency_unicode_patch_filename)
+            sf1 = '''-- MMEX Debug SQL - Update --
+-- MMEX db version required 13
+-- This script will add missing currencies and will overwrite all currencies params containing UTF8 in your database.'''
+            with open(currency_unicode_patch_filename, 'w', encoding='utf-8') as rfp:
+                rfp.write(self.generate_currency_table_data(sf1, True))
 
     def generate_currency_upgrade_patch(self):
         """Write currency_table_upgrade_patch file
            Extract all currency data"""
-        if self._table.upper() == 'CURRENCYFORMATS_V1':
-            print 'Generate patch file: %s' % currency_table_patch_filename
-            rfp = codecs.open(currency_table_patch_filename, 'w', 'utf-8')
-            sf1 = '-- MMEX Debug SQL - Update --'
-            rfp.write(self.generate_currency_table_data(sf1, False))
-            rfp.close()
+        if self._table.upper() == 'CURRENCYFORMATS':
+            print('Generate patch file: %s' % currency_table_patch_filename)
+            sf1 = '''-- MMEX Debug SQL - Update --
+-- MMEX db version required 13
+-- This script will add missing currencies and will overwrite all currencies params in your database.'''
+            with open(currency_table_patch_filename, 'w', encoding='utf-8') as rfp:
+                rfp.write(self.generate_currency_table_data(sf1, False))
 
     def generate_class(self, header, sql):
         """ Write the data to the appropriate .h file"""
-        print 'Generate Table: %s' % self._table
-        rfp = codecs.open('DB_Table_' + self._table.title() + '.h', 'w', 'utf-8-sig')
-        rfp.write(header + self.to_string(sql))
-        rfp.close()
+        print('Generate Table: %s' % self._table)
+        with open('Table_%s.h' % self._table.title(), 'w', encoding='utf-8') as rfp:
+            rfp.write(header % 'CRUD implementation for %s SQLite table' % self._table)
+            rfp.write(self.to_string(sql))
 
     def to_string(self, sql=None):
         """Create the data for the .h file"""
-        utfc = ''
-        if self._table.upper() == 'CURRENCYFORMATS_V1':
-            utfc = '#pragma execution_character_set("UTF-8")\n'
 
-        s = '''
-%s
-#ifndef DB_TABLE_%s_H
-#define DB_TABLE_%s_H
+        s = '''#pragma once
 
-#include "DB_Table.h"
+#include "Table.h"
 
 struct DB_Table_%s : public DB_Table
 {
     struct Data;
     typedef DB_Table_%s Self;
+
     /** A container to hold list of Data records for the table*/
     struct Data_Set : public std::vector<Self::Data>
     {
-        std::wstring to_json(json::Array& a) const
+        /** Return the data records as a json array string */
+        wxString to_json() const
         {
+            StringBuffer json_buffer;
+            PrettyWriter<StringBuffer> json_writer(json_buffer);
+
+            json_writer.StartArray();
             for (const auto & item: *this)
             {
-                json::Object o;
-                item.to_json(o);
-                a.Insert(o);
+                json_writer.StartObject();
+                item.as_json(json_writer);
+                json_writer.EndObject();
             }
-            std::wstringstream ss;
-            json::Writer::Write(a, ss);
-            return ss.str();
+            json_writer.EndArray();
+
+            return json_buffer.GetString();
         }
     };
+
     /** A container to hold a list of Data record pointers for the table in memory*/
     typedef std::vector<Self::Data*> Cache;
     typedef std::map<int, Self::Data*> Index_By_Id;
@@ -194,20 +207,20 @@ struct DB_Table_%s : public DB_Table
     Data* fake_; // in case the entity not found
 
     /** Destructor: clears any data records stored in memory */
-    ~DB_Table_%s() 
+    ~DB_Table_%s()
     {
         delete this->fake_;
         destroy_cache();
     }
-     
-    /** Removes all records stored in memory (cache) for the table*/ 
+
+    /** Removes all records stored in memory (cache) for the table*/
     void destroy_cache()
     {
         std::for_each(cache_.begin(), cache_.end(), std::mem_fun(&Data::destroy));
         cache_.clear();
         index_by_id_.clear(); // no memory release since it just stores pointer and the according objects are in cache
     }
-''' % (utfc, self._table.upper(), self._table.upper(), self._table, self._table, self._table)
+''' % (self._table, self._table, self._table)
 
         s += '''
     /** Creates the database table if the table does not exist*/
@@ -220,8 +233,8 @@ struct DB_Table_%s : public DB_Table
                 db->ExecuteUpdate("%s");
                 this->ensure_data(db);
             }
-            catch(const wxSQLite3Exception &e) 
-            { 
+            catch(const wxSQLite3Exception &e)
+            {
                 wxLogError("%s: Exception %%s", e.GetMessage().c_str());
                 return false;
             }
@@ -249,8 +262,8 @@ struct DB_Table_%s : public DB_Table
 
         s += '''
         }
-        catch(const wxSQLite3Exception &e) 
-        { 
+        catch(const wxSQLite3Exception &e)
+        {
             wxLogError("%s: Exception %%s", e.GetMessage().c_str());
             return false;
         }
@@ -284,10 +297,11 @@ struct DB_Table_%s : public DB_Table
         for field in self._fields:
             s += '''
     struct %s : public DB_Column<%s>
-    { 
-        static wxString name() { return "%s"; } 
+    {
+        static wxString name() { return "%s"; }
         explicit %s(const %s &v, OP op = EQUAL): DB_Column<%s>(v, op) {}
-    };''' % (field['name'], base_data_types_reverse[field['type']], field['name'],
+    };
+    ''' % (field['name'], base_data_types_reverse[field['type']], field['name'],
              field['name'], base_data_types_reverse[field['type']],
              base_data_types_reverse[field['type']])
 
@@ -304,6 +318,7 @@ struct DB_Table_%s : public DB_Table
         , COL_%s = %d''' % (name.upper(), index +1)
 
         s += '''
+        , COL_UNKNOWN = -1
     };
 '''
         s += '''
@@ -320,7 +335,7 @@ struct DB_Table_%s : public DB_Table
         s += '''
             default: break;
         }
-        
+
         return "UNKNOWN";
     }
 '''
@@ -336,7 +351,7 @@ struct DB_Table_%s : public DB_Table
 
         s += '''
 
-        return COLUMN(-1);
+        return COL_UNKNOWN;
     }
     '''
         s += '''
@@ -351,15 +366,25 @@ struct DB_Table_%s : public DB_Table
             s += '''
         %s %s;%s''' % (
             base_data_types_reverse[field['type']],
-            field['name'], field['pk'] and '//  primary key' or '')
+            field['name'], field['pk'] and ' // primary key' or '')
 
         s += '''
-        int id() const { return %s; }
-        void id(int id) { %s = id; }
+
+        int id() const
+        {
+            return %s;
+        }
+
+        void id(int id)
+        {
+            %s = id;
+        }
+
         bool operator < (const Data& r) const
         {
             return this->id() < r.id();
         }
+
         bool operator < (const Data* r) const
         {
             return this->id() < r->id();
@@ -367,7 +392,7 @@ struct DB_Table_%s : public DB_Table
 ''' % (self._primay_key, self._primay_key)
 
         s += '''
-        explicit Data(Self* table = 0) 
+        explicit Data(Self* table = 0)
         {
             table_ = table;
         '''
@@ -394,7 +419,7 @@ struct DB_Table_%s : public DB_Table
         for field in self._fields:
             func = base_data_types_function[field['type']]
             s += '''
-            %s = q.%s(%d); // %s''' % (field['name'], func, field['cid'], field['name'])
+            %s = q.%s(%d);''' % (field['name'], func, field['cid'])
 
         s += '''
         }
@@ -410,54 +435,63 @@ struct DB_Table_%s : public DB_Table
             return *this;
         }
 '''
-        s += '''
-        template<typename C>
-        bool match(const C &c) const
-        {
-            return false;
-        }'''
         for field in self._fields:
             ftype = base_data_types_reverse[field['type']]
             if ftype == 'wxString':
                 s += '''
+
         bool match(const Self::%s &in) const
         {
             return this->%s.CmpNoCase(in.v_) == 0;
         }''' % (field['name'], field['name'])
             else:
                 s += '''
+
         bool match(const Self::%s &in) const
         {
             return this->%s == in.v_;
         }''' % (field['name'], field['name'])
 
         s += '''
+
+        /** Return the data record as a json string */
         wxString to_json() const
         {
-            json::Object o;
-            this->to_json(o);
-            std::wstringstream ss;
-            json::Writer::Write(o, ss);
-            return ss.str();
-        }
-        
-        int to_json(json::Object& o) const
-        {'''
+            StringBuffer json_buffer;
+            PrettyWriter<StringBuffer> json_writer(json_buffer);
 
+            json_writer.StartObject();
+            this->as_json(json_writer);
+            json_writer.EndObject();
+
+            return json_buffer.GetString();
+        }
+
+        /** Add the field data as json key:value pairs */
+        void as_json(PrettyWriter<StringBuffer>& json_writer) const
+        {'''
         for field in self._fields:
-            type = base_data_types_reverse[field['type']]
-            if type == 'wxString':
+            fieldtype = base_data_types_reverse[field['type']]
+            if fieldtype == 'int':
                 s += '''
-            o[L"%s"] = json::String(this->%s.ToStdWstring());''' % (field['name'], field['name'])
+            json_writer.Key("%s");
+            json_writer.Int(this->%s);''' % (field['name'], field['name'])
+            elif fieldtype == 'double':
+                s += '''
+            json_writer.Key("%s");
+            json_writer.Double(this->%s);''' % (field['name'], field['name'])
+            elif fieldtype == 'wxString':
+                s += '''
+            json_writer.Key("%s");
+            json_writer.String(this->%s.c_str());''' % (field['name'], field['name'])
             else:
-                s += '''
-            o[L"%s"] = json::Number(this->%s);''' % (field['name'], field['name'])
+                raise NotImplementedError("Field type '%s' unknown" % fieldtype)
 
         s += '''
-            return 0;
         }'''
 
         s += '''
+
         row_t to_row_t() const
         {
             row_t row;'''
@@ -470,6 +504,7 @@ struct DB_Table_%s : public DB_Table
         }'''
 
         s += '''
+
         void to_template(html_template& t) const
         {'''
         for field in self._fields:
@@ -485,7 +520,7 @@ struct DB_Table_%s : public DB_Table
         bool save(wxSQLite3Database* db)
         {
             if (db && db->IsReadOnly()) return false;
-            if (!table_ || !db) 
+            if (!table_ || !db)
             {
                 wxLogError("can not save %s");
                 return false;
@@ -497,19 +532,17 @@ struct DB_Table_%s : public DB_Table
         /** Remove the record instance from memory and the database. */
         bool remove(wxSQLite3Database* db)
         {
-            if (!table_ || !db) 
+            if (!table_ || !db)
             {
                 wxLogError("can not remove %s");
                 return false;
             }
-            
+
             return table_->remove(this, db);
         }
 
         void destroy()
         {
-            //if (this->id() < 0)
-            //    wxSafeShowMessage("unsaved object", this->to_json());
             delete this;
         }
     };
@@ -524,7 +557,7 @@ struct DB_Table_%s : public DB_Table
 ''' % len(self._fields)
 
         s += '''
-    /** Name of the table*/    
+    /** Name of the table */
     wxString name() const { return "%s"; }
 ''' % self._table
 
@@ -536,15 +569,15 @@ struct DB_Table_%s : public DB_Table
 ''' % (self._table, ', '.join([field['name'] for field in self._fields]), self._table)
 
         s += '''
-    /** Create a new Data record and add to memory table (cache)*/
+    /** Create a new Data record and add to memory table (cache) */
     Self::Data* create()
     {
         Self::Data* entity = new Self::Data(this);
         cache_.push_back(entity);
         return entity;
     }
-    
-    /** Create a copy of the Data record and add to memory table (cache)*/
+
+    /** Create a copy of the Data record and add to memory table (cache) */
     Self::Data* clone(const Data* e)
     {
         Self::Data* entity = create();
@@ -598,13 +631,13 @@ struct DB_Table_%s : public DB_Table
                 for(Cache::iterator it = cache_.begin(); it != cache_.end(); ++ it)
                 {
                     Self::Data* e = *it;
-                    if (e->id() == entity->id()) 
+                    if (e->id() == entity->id())
                         *e = *entity;  // in-place update
                 }
             }
         }
-        catch(const wxSQLite3Exception &e) 
-        { 
+        catch(const wxSQLite3Exception &e)
+        {
             wxLogError("%s: Exception %%s, %%s", e.GetMessage().c_str(), entity->to_json());
             return false;
         }
@@ -634,12 +667,12 @@ struct DB_Table_%s : public DB_Table
             for(Cache::iterator it = cache_.begin(); it != cache_.end(); ++ it)
             {
                 Self::Data* entity = *it;
-                if (entity->id() == id) 
+                if (entity->id() == id)
                 {
                     index_by_id_.erase(entity->id());
                     delete entity;
                 }
-                else 
+                else
                 {
                     c.push_back(entity);
                 }
@@ -647,8 +680,8 @@ struct DB_Table_%s : public DB_Table
             cache_.clear();
             cache_.swap(c);
         }
-        catch(const wxSQLite3Exception &e) 
-        { 
+        catch(const wxSQLite3Exception &e)
+        {
             wxLogError("%s: Exception %%s", e.GetMessage().c_str());
             return false;
         }
@@ -676,7 +709,7 @@ struct DB_Table_%s : public DB_Table
         for (Index_By_Id::iterator it = index_by_id_.begin(); it != index_by_id_.end(); ++ it)
         {
             Self::Data* item = it->second;
-            if (item->id() > 0 && match(item, args...)) 
+            if (item->id() > 0 && match(item, args...))
             {
                 ++ hit_;
                 return item;
@@ -689,14 +722,14 @@ struct DB_Table_%s : public DB_Table
     }'''
 
         s += '''
-    
+
     /**
     * Search the memory table (Cache) for the data record.
     * If not found in memory, search the database and update the cache.
     */
     Self::Data* get(int id, wxSQLite3Database* db)
     {
-        if (id <= 0) 
+        if (id <= 0)
         {
             ++ skip_;
             return 0;
@@ -708,7 +741,7 @@ struct DB_Table_%s : public DB_Table
             ++ hit_;
             return it->second;
         }
-        
+
         ++ miss_;
         Self::Data* entity = 0;
         wxString where = wxString::Format(" WHERE %s = ?", PRIMARY::name().c_str());
@@ -726,17 +759,17 @@ struct DB_Table_%s : public DB_Table
             }
             stmt.Finalize();
         }
-        catch(const wxSQLite3Exception &e) 
-        { 
+        catch(const wxSQLite3Exception &e)
+        {
             wxLogError("%s: Exception %s", this->name().c_str(), e.GetMessage().c_str());
         }
-        
-        if (!entity) 
+
+        if (!entity)
         {
             entity = this->fake_;
             // wxLogError("%s: %d not found", this->name().c_str(), id);
         }
- 
+
         return entity;
     }
 '''
@@ -760,8 +793,8 @@ struct DB_Table_%s : public DB_Table
 
             q.Finalize();
         }
-        catch(const wxSQLite3Exception &e) 
-        { 
+        catch(const wxSQLite3Exception &e)
+        {
             wxLogError("%s: Exception %s", this->name().c_str(), e.GetMessage().c_str());
         }
 
@@ -769,32 +802,35 @@ struct DB_Table_%s : public DB_Table
     }
 '''
         s += '''};
-#endif //
+
 '''
         return s
 
 def generate_base_class(header, fields=set):
     """Generate the base class"""
-    rfp = open('DB_Table.h', 'wb')
-    code = header + '''
-#ifndef DB_TABLE_H
-#define DB_TABLE_H
+    code = header % 'Base class for CRUD SQL tables implementation'
+    code += '''#pragma once
 
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <functional>
 #include <wx/wxsqlite3.h>
-#include <wx/intl.h> 
+#include <wx/intl.h>
+#include <wx/log.h>
 
-#include "cajun/json/elements.h"
-#include "cajun/json/reader.h"
-#include "cajun/json/writer.h"
-#include "html_template.h"
+#include "rapidjson/document.h"
+#include "rapidjson/pointer.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
+using namespace rapidjson;
+
+#include <html_template.h>
 using namespace tmpl;
 
 class wxString;
 enum OP { EQUAL = 0, GREATER, LESS, GREATER_OR_EQUAL, LESS_OR_EQUAL, NOT_EQUAL };
+
 template<class V>
 struct DB_Column
 {
@@ -816,7 +852,7 @@ struct DB_Table
 
     bool exists(wxSQLite3Database* db) const
     {
-       return db->TableExists(this->name()); 
+       return db->TableExists(this->name());
     }
 
     void drop(wxSQLite3Database* db) const
@@ -842,7 +878,7 @@ void condition(wxString& out, bool /*op_and*/, const Arg1& arg1)
 }
 
 template<typename Arg1, typename... Args>
-void condition(wxString& out, bool op_and, const Arg1& arg1, const Args&... args) 
+void condition(wxString& out, bool op_and, const Arg1& arg1, const Args&... args)
 {
     out += Arg1::name();
     switch (arg1.op_)
@@ -868,7 +904,7 @@ void bind(wxSQLite3Statement& stmt, int index, const Arg1& arg1)
 template<typename Arg1, typename... Args>
 void bind(wxSQLite3Statement& stmt, int index, const Arg1& arg1, const Args&... args)
 {
-    stmt.Bind(index, arg1.v_); 
+    stmt.Bind(index, arg1.v_);
     bind(stmt, index+1, args...);
 }
 
@@ -893,11 +929,11 @@ const typename TABLE::Data_Set find_by(TABLE* table, wxSQLite3Database* db, bool
 
         q.Finalize();
     }
-    catch(const wxSQLite3Exception &e) 
-    { 
+    catch(const wxSQLite3Exception &e)
+    {
         wxLogError("%s: Exception %s", table->name().c_str(), e.GetMessage().c_str());
     }
- 
+
     return result;
 }
 
@@ -910,64 +946,80 @@ bool match(const DATA* data, const Arg1& arg1)
 template<class DATA, typename Arg1, typename... Args>
 bool match(const DATA* data, const Arg1& arg1, const Args&... args)
 {
-    if (data->match(arg1)) 
+    if (data->match(arg1))
         return match(data, args...);
     else
         return false; // Short-circuit evaluation
 }
 '''
     for field in sorted(fields):
+        transl = 'wxGetTranslation' if field == 'CURRENCYNAME' else ''
         code += '''
 struct SorterBy%s
-{ 
+{
     template<class DATA>
     bool operator()(const DATA& x, const DATA& y)
     {
-        return x.%s < y.%s;
+        return %s(x.%s) < %s(y.%s);
     }
 };
-''' % (field, field, field)
+''' % (field, transl, field, transl, field)
 
-    code += '''
-#endif // 
-'''
-    rfp = open('db_table.h', 'w')
-    rfp.write(code)
-    rfp.close()
+    with open('Table.h', 'w', encoding='utf-8') as rfp:
+        rfp.write(code)
+
+def gitLastModified(*fnames):
+    """return date string for the last commit modifing files given"""
+    cmd = ['git', 'log', '-n1', '--pretty=format:%ci', '--']
+    func = 'commonpath' if 'commonpath' in dir(os.path) else 'commonprefix'
+    cpath = os.path.dirname(getattr(os.path, func)(fnames)) or None
+    cmd.extend([os.path.relpath(f, cpath) if cpath else f for f in fnames])
+    return subprocess.check_output(cmd, universal_newlines=True, cwd=cpath)
 
 if __name__ == '__main__':
-    header = '''// -*- C++ -*-
-//=============================================================================
-/**
- *      Copyright (c) 2013 - %s Guan Lisheng (guanlisheng@gmail.com)
- *      Modifications: (c) 2017 Stefano Giorgio
- *
- *      @file
- *
- *      @author [%s]
- *
- *      @brief
- *
- *      Revision History:
- *          AUTO GENERATED at %s.
- *          DO NOT EDIT!
+    header = u'''// -*- C++ -*-
+/** @file
+ * @brief     %%s
+ * @warning   Auto generated with %s script. DO NOT EDIT!
+ * @copyright © 2013-2018 Guan Lisheng
+ * @copyright © 2017-2018 Stefano Giorgio
+ * @author    Guan Lisheng (guanlisheng@gmail.com)
+ * @author    Stefano Giorgio (stef145g)
+ * @author    Tomasz Słodkowicz
+ * @date      %s
  */
-//=============================================================================
-'''% (datetime.date.today().year, os.path.basename(__file__), str(datetime.datetime.now()))
+'''% (os.path.basename(__file__), gitLastModified(__file__, sys.argv[1]) or 'unknown')
 
     conn, cur, sql_file = None, None, None
-    try:
-        sql_file = sys.argv[1]
-        conn = sqlite3.connect(":memory:")
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-    except:
-        print __doc__
+    if len(sys.argv) != 2:
+        print(__doc__)
         sys.exit(1)
+    sql_file = sys.argv[1]
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
     sql = ""
-    for line in open(sql_file, 'rb'):
+    sql_txt = '''-- NOTE:
+-- This file has been AUTO GENERATED from database/tables.sql
+-- All translation identifers "_tr_" have been removed.
+-- This file can be used to manually generate a database.
+
+'''
+
+    for line in open(sql_file, 'r', encoding='utf-8'):
         sql = sql + line
+
+        if line.find('_tr_') > 0: # Remove _tr_ identifyer for wxTRANSLATE
+            line = line.replace('_tr_', '')
+
+        sql_txt = sql_txt + line
+
+    # Generate a table that does not contain translation code identifyer
+    print( 'Generate SQL file: %s that can generate a clean database.' % sql_tables_data_filename)
+    with open(sql_tables_data_filename, 'w', encoding='utf-8') as file_data:
+        file_data.write(sql_txt)
 
     cur.executescript(sql)
 
@@ -986,4 +1038,4 @@ if __name__ == '__main__':
     generate_base_class(header, all_fields)
 
     conn.close()
-    print 'End of Run'
+    print('End of Run')

@@ -19,14 +19,14 @@
 #include "categdialog.h"
 #include "constants.h"
 #include "paths.h"
-#include "mmtextctrl.h"
+#include "mmTextCtrl.h"
 #include "transactionsupdatedialog.h"
 #include "validators.h"
-#include "wx/statline.h"
 #include "mmSimpleDialogs.h"
-#include "model/Model_Account.h"
-#include "model/Model_Checking.h"
-#include "model/Model_Payee.h"
+#include "Model_Account.h"
+#include "Model_Checking.h"
+#include "Model_Payee.h"
+#include <wx/statline.h>
 
 wxIMPLEMENT_DYNAMIC_CLASS(transactionsUpdateDialog, wxDialog);
 
@@ -48,22 +48,22 @@ transactionsUpdateDialog::~transactionsUpdateDialog()
 transactionsUpdateDialog::transactionsUpdateDialog(wxWindow* parent
     , int account_id
     , std::vector<int>& transaction_id)
-    : m_transaction_id(transaction_id)
+    : m_payee_checkbox(nullptr)
+    , m_payee(nullptr)
     , m_date_checkbox(nullptr)
     , m_dpc(nullptr)
     , m_status_checkbox(nullptr)
     , m_status_choice(nullptr)
     , m_categ_checkbox(nullptr)
     , m_categ_btn(nullptr)
-	, m_type_checkbox(nullptr)
+    , m_type_checkbox(nullptr)
     , m_type_choice(nullptr)
     , m_amount_checkbox(nullptr)
     , m_amount_ctrl(nullptr)
     , m_notes_checkbox(nullptr)
     , m_append_checkbox(nullptr)
     , m_notes_ctrl(nullptr)
-    , m_payee(nullptr)
-    , m_payee_checkbox(nullptr)
+    , m_transaction_id(transaction_id)
 {
     Model_Account::Data* acc = Model_Account::instance().get(account_id);
     m_currency = acc ? Model_Account::currency(acc) : Model_Currency::GetBaseCurrency();
@@ -130,19 +130,19 @@ void transactionsUpdateDialog::CreateControls()
     grid_sizer->Add(m_status_choice, g_flagsH);
 
     // Type --------------------------------------------
-	m_type_checkbox = new wxCheckBox(this, wxID_ANY, _("Type")
-		, wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
-	m_type_choice = new wxChoice(this, wxID_ANY
-		, wxDefaultPosition, wxDefaultSize);
-	m_type_choice->Enable(false);
+    m_type_checkbox = new wxCheckBox(this, wxID_ANY, _("Type")
+        , wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    m_type_choice = new wxChoice(this, wxID_ANY
+        , wxDefaultPosition, wxDefaultSize);
+    m_type_choice->Enable(false);
 
-	for (const auto& i : Model_Checking::all_type())
-	{
-		m_type_choice->Append(wxGetTranslation(i), new wxStringClientData(i));
-	}
+    for (const auto& i : Model_Checking::all_type())
+    {
+        m_type_choice->Append(wxGetTranslation(i), new wxStringClientData(i));
+    }
 
-	grid_sizer->Add(m_type_checkbox, g_flagsH);
-	grid_sizer->Add(m_type_choice, g_flagsH);
+    grid_sizer->Add(m_type_checkbox, g_flagsH);
+    grid_sizer->Add(m_type_choice, g_flagsH);
 
     // Amount Field --------------------------------------------
     m_amount_checkbox = new wxCheckBox(this, wxID_ANY, _("Amount")
@@ -219,7 +219,7 @@ void transactionsUpdateDialog::CreateControls()
     button_panel_sizer->Add(button_cancel, g_flagsH);
 }
 
-void transactionsUpdateDialog::OnOk(wxCommandEvent& /*event*/)
+void transactionsUpdateDialog::OnOk(wxCommandEvent& WXUNUSED(event))
 {
     double amount = 0;
     if (m_amount_checkbox->IsChecked() && !m_amount_ctrl->checkValue(amount))
@@ -228,26 +228,26 @@ void transactionsUpdateDialog::OnOk(wxCommandEvent& /*event*/)
     wxString status = "";
     if (m_status_checkbox->IsChecked())
     {
-        wxStringClientData* status_obj = (wxStringClientData*)m_status_choice->GetClientObject(m_status_choice->GetSelection());
+        wxStringClientData* status_obj = static_cast<wxStringClientData*>(m_status_choice->GetClientObject(m_status_choice->GetSelection()));
         if (status_obj)
             status = Model_Checking::toShortStatus(status_obj->GetData());
         else
             return;
     }
 
-	wxString type = "";
-	if (m_type_checkbox->IsChecked())
-	{
-		int i = m_type_choice->GetSelection();
-		wxStringClientData* type_obj = ((i >= 0) && (i < (int)m_type_choice->GetCount()))
-			? (wxStringClientData*)m_type_choice->GetClientObject(i) : nullptr;
-		if (type_obj)
-			type = type_obj->GetData();
-		else
-			return mmErrorDialogs::ToolTip4Object(m_type_choice
-				, _("Selection can be made by using the dropdown button.")
-				, _("Invalid type"), wxICON_WARNING);
-	}
+    wxString type = "";
+    if (m_type_checkbox->IsChecked())
+    {
+        int i = m_type_choice->GetSelection();
+        wxStringClientData* type_obj = (i >= 0 && static_cast<unsigned>(i) < m_type_choice->GetCount())
+            ? static_cast<wxStringClientData*>(m_type_choice->GetClientObject(i)) : nullptr;
+        if (type_obj)
+            type = type_obj->GetData();
+        else
+            return mmErrorDialogs::ToolTip4Object(m_type_choice
+                , _("Selection can be made by using the dropdown button.")
+                , _("Invalid type"), wxICON_WARNING);
+    }
 
     int payee_id = -1;
     if (m_payee_checkbox->IsChecked())
@@ -265,10 +265,10 @@ void transactionsUpdateDialog::OnOk(wxCommandEvent& /*event*/)
             return mmErrorDialogs::InvalidCategory(m_categ_btn);
     }
 
-	const auto split = Model_Splittransaction::instance().get_all();
+    const auto split = Model_Splittransaction::instance().get_all();
 
     Model_Checking::instance().Savepoint();
-    
+
     for (const auto& id : m_transaction_id)
     {
         Model_Checking::Data *trx = Model_Checking::instance().get(id);
@@ -289,21 +289,21 @@ void transactionsUpdateDialog::OnOk(wxCommandEvent& /*event*/)
         if (m_notes_checkbox->IsChecked() && !m_notes_ctrl->GetValue().IsEmpty())
         {
             if (m_append_checkbox->IsChecked())
-                trx->NOTES += (trx->NOTES.Right(1) == "\n" ? "" : "\n") 
+                trx->NOTES += (trx->NOTES.Right(1) == "\n" ? "" : "\n")
                     + m_notes_ctrl->GetValue();
             else
                 trx->NOTES = m_notes_ctrl->GetValue();
         }
 
         if (m_amount_checkbox->IsChecked() && (split.find(trx->TRANSID) == split.end()))
-		{
-			trx->TRANSAMOUNT = amount;
-		}
-		if (m_categ_checkbox->IsChecked() && (split.find(trx->TRANSID) == split.end()))
-		{
-			trx->CATEGID = m_categ_id;
-			trx->SUBCATEGID = m_subcateg_id;
-		}
+        {
+            trx->TRANSAMOUNT = amount;
+        }
+        if (m_categ_checkbox->IsChecked() && (split.find(trx->TRANSID) == split.end()))
+        {
+            trx->CATEGID = m_categ_id;
+            trx->SUBCATEGID = m_subcateg_id;
+        }
 
         if (m_type_checkbox->IsChecked() && !Model_Checking::is_transfer(trx))
         {
@@ -337,7 +337,7 @@ void transactionsUpdateDialog::OnOk(wxCommandEvent& /*event*/)
 
         Model_Checking::instance().save(trx);
     }
-    
+
     Model_Checking::instance().ReleaseSavepoint();
     EndModal(wxID_OK);
 }
@@ -346,8 +346,8 @@ void transactionsUpdateDialog::OnCheckboxClick(wxCommandEvent& event)
 {
 
     m_dpc->Enable(m_date_checkbox->IsChecked());
-	m_status_choice->Enable(m_status_checkbox->IsChecked());
-	m_type_choice->Enable(m_type_checkbox->IsChecked());
+    m_status_choice->Enable(m_status_checkbox->IsChecked());
+    m_type_choice->Enable(m_type_checkbox->IsChecked());
     m_payee->Enable(m_payee_checkbox->IsChecked());
     m_categ_btn->Enable(m_categ_checkbox->IsChecked());
     m_amount_ctrl->Enable(m_amount_checkbox->IsChecked());
@@ -379,10 +379,10 @@ void transactionsUpdateDialog::onFocusChange(wxChildFocusEvent& event)
     event.Skip();
 }
 
-void transactionsUpdateDialog::OnCategChange(wxCommandEvent& /*event*/)
+void transactionsUpdateDialog::OnCategChange(wxCommandEvent& WXUNUSED(event))
 {
-    mmCategDialog dlg(this, -1, -1, false);
-    if (dlg.ShowModal() == wxID_OK)
+    mmCategDialog dlg(this, -1, -1);
+    if (dlg.ShowModal() == wxID_APPLY)
     {
         m_categ_id = dlg.getCategId();
         m_subcateg_id = dlg.getSubCategId();

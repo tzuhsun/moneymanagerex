@@ -29,18 +29,19 @@ const std::vector<std::pair<Model_Account::STATUS_ENUM, wxString> > Model_Accoun
 
 const std::vector<std::pair<Model_Account::TYPE, wxString> > Model_Account::TYPE_CHOICES =
 {
-    {Model_Account::CASH, wxString(wxTRANSLATE("Cash"))},
-    {Model_Account::CHECKING, wxString(wxTRANSLATE("Checking"))},
-    {Model_Account::CREDIT_CARD, wxString(wxTRANSLATE("Credit Card"))},
-    {Model_Account::LOAN, wxString(wxTRANSLATE("Loan"))},
-    {Model_Account::TERM, wxString(wxTRANSLATE("Term"))},
-    {Model_Account::INVESTMENT, wxString(wxTRANSLATE("Investment"))},
-    {Model_Account::ASSET, wxString(wxTRANSLATE("Asset"))},
-    {Model_Account::SHARES, wxString(wxTRANSLATE("Shares"))},
+    { Model_Account::CASH, wxString(wxTRANSLATE("Cash"))},
+    { Model_Account::CHECKING, wxString(wxTRANSLATE("Checking"))},
+    { Model_Account::CREDIT_CARD, wxString(wxTRANSLATE("Credit Card"))},
+    { Model_Account::LOAN, wxString(wxTRANSLATE("Loan"))},
+    { Model_Account::TERM, wxString(wxTRANSLATE("Term"))},
+    { Model_Account::CRYPTO, wxString(wxTRANSLATE("Crypto")) },
+    { Model_Account::INVESTMENT, wxString(wxTRANSLATE("Investment"))},
+    { Model_Account::ASSET, wxString(wxTRANSLATE("Asset"))},
+    { Model_Account::SHARES, wxString(wxTRANSLATE("Shares"))},
 };
 
 Model_Account::Model_Account()
-: Model<DB_Table_ACCOUNTLIST_V1>()
+: Model<DB_Table_ACCOUNTLIST>()
 {
 }
 
@@ -74,8 +75,12 @@ wxArrayString Model_Account::all_checking_account_names(bool skip_closed)
     wxArrayString accounts;
     for (const auto &account : this->all(COL_ACCOUNTNAME))
     {
-        if (type(account) == INVESTMENT) continue;
-        if (skip_closed && status(account) == CLOSED) continue;
+        if (skip_closed && status(account) == CLOSED)
+            continue;
+        if (type(account) == INVESTMENT)
+            continue;
+        if (account.ACCOUNTNAME.empty())
+            continue;
         accounts.Add(account.ACCOUNTNAME);
     }
     return accounts;
@@ -96,7 +101,7 @@ wxArrayString Model_Account::all_type()
     static wxArrayString type;
     if (type.empty())
     {
-        for (const auto& item : TYPE_CHOICES) 
+        for (const auto& item : TYPE_CHOICES)
             type.Add(item.second);
     }
     return type;
@@ -167,11 +172,11 @@ Model_Currency::Data* Model_Account::currency(const Data* r)
         return currency;
     else
     {
-        wxASSERT(false);
+        wxFAIL_MSG("currency not found");
         return Model_Currency::GetBaseCurrency();
     }
 }
-    
+
 Model_Currency::Data* Model_Account::currency(const Data& r)
 {
     return currency(&r);
@@ -207,7 +212,7 @@ double Model_Account::balance(const Data* r)
     double sum = r->INITIALBAL;
     for (const auto& tran: transaction(r))
     {
-        sum += Model_Checking::balance(tran, r->ACCOUNTID); 
+        sum += Model_Checking::balance(tran, r->ACCOUNTID);
     }
     return sum;
 }
@@ -236,7 +241,7 @@ std::pair<double, double> Model_Account::investment_balance(const Data& r)
 wxString Model_Account::toCurrency(double value, const Data* r)
 {
     return Model_Currency::toCurrency(value, currency(r));
-}    
+}
 
 wxString Model_Account::toString(double value, const Data* r, int precision)
 {
@@ -260,9 +265,9 @@ Model_Account::STATUS_ENUM Model_Account::status(const Data& account)
     return status(&account);
 }
 
-DB_Table_ACCOUNTLIST_V1::STATUS Model_Account::STATUS(STATUS_ENUM status, OP op)
+DB_Table_ACCOUNTLIST::STATUS Model_Account::STATUS(STATUS_ENUM status, OP op)
 {
-    return DB_Table_ACCOUNTLIST_V1::STATUS(all_status()[status], op);
+    return DB_Table_ACCOUNTLIST::STATUS(all_status()[status], op);
 }
 
 Model_Account::TYPE Model_Account::type(const Data* account)
@@ -271,7 +276,7 @@ Model_Account::TYPE Model_Account::type(const Data* account)
     const auto it = cache.find(account->ACCOUNTTYPE);
     if (it != cache.end()) return it->second;
 
-    for (const auto& t : TYPE_CHOICES) 
+    for (const auto& t : TYPE_CHOICES)
     {
         if (account->ACCOUNTTYPE.CmpNoCase(t.second) == 0)
         {

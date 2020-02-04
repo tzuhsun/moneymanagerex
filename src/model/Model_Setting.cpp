@@ -96,7 +96,7 @@ bool Model_Setting::GetBoolSetting(const wxString& key, bool default_value)
     if (value == "TRUE") return true;
     if (value == "FALSE") return false;
 
-    return default_value; 
+    return default_value;
 }
 
 int Model_Setting::GetIntSetting(const wxString& key, int default_value)
@@ -161,7 +161,9 @@ row_t Model_Setting::to_row_t()
 //-------------------------------------------------------------------
 wxString Model_Setting::ViewAccounts()
 {
-    return GetStringSetting("VIEWACCOUNTS", VIEW_ACCOUNTS_ALL_STR);
+    wxString val = GetStringSetting("VIEWACCOUNTS", VIEW_ACCOUNTS_ALL_STR);
+    // handle SETTING_V1 upgrade to v1.4.0 changes
+    return val == "ALL" ? VIEW_ACCOUNTS_ALL_STR : val;
 }
 
 void Model_Setting::SetViewAccounts(const wxString& value)
